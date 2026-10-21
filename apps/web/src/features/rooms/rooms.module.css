@@ -1,0 +1,508 @@
+.home {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 28px;
+  align-items: start;
+}
+
+.main,
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  min-width: 0;
+}
+
+.side {
+  gap: 16px;
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 42px;
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+}
+
+.lede {
+  margin: 8px 0 0;
+  font-size: 15px;
+  color: var(--ink-2);
+}
+
+.h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.p {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.caps {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  text-transform: uppercase;
+}
+
+.note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.bad {
+  margin: 0;
+  font-size: 13px;
+  color: var(--bad-fg);
+}
+
+.skeleton {
+  height: 188px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: linear-gradient(90deg, var(--surface) 0%, var(--surface-2) 50%, var(--surface) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* Empty state */
+.empty {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  padding: 34px;
+  display: flex;
+  gap: 28px;
+  align-items: center;
+}
+
+.emptyArt {
+  width: 120px;
+  height: 120px;
+  flex: none;
+  border-radius: 16px;
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--bg-dot) 1.1px, transparent 1.1px);
+  background-size: 14px 14px;
+  border: 1px dashed var(--line-strong);
+  display: grid;
+  place-items: center;
+}
+
+.emptyBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Join by link */
+.join,
+.joinCompact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.joinCompact {
+  border: 1px dashed var(--line-strong);
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.joinField {
+  flex: 1 1 220px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 46px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  padding: 0 12px;
+  background: var(--surface-2);
+}
+
+.joinField[data-error] {
+  border-color: var(--bad-fg);
+}
+
+.joinField:focus-within {
+  outline: 2px solid var(--seat-blue);
+  outline-offset: 1px;
+}
+
+.joinField input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  outline: none;
+}
+
+.joinField input::placeholder {
+  color: var(--ink-3);
+}
+
+.joinBtn {
+  height: 46px;
+  padding: 0 18px;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.joinBtn:hover {
+  background: var(--surface-2);
+}
+
+.join .bad,
+.joinCompact .bad {
+  flex-basis: 100%;
+}
+
+/* Room list */
+.roomList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.roomCard {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.roomCard:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow);
+}
+
+.roomBody {
+  min-width: 0;
+}
+
+.roomTitle {
+  font-weight: 600;
+  font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roomMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--ink-3);
+  margin-top: 2px;
+}
+
+.seats {
+  display: flex;
+}
+
+.seats > * + * {
+  margin-left: -8px;
+}
+
+.seats > * {
+  box-shadow: 0 0 0 2px var(--surface);
+  border-radius: 999px;
+}
+
+.waiting {
+  text-align: right;
+  min-width: 0;
+}
+
+.waitPill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--wait-bg);
+  color: var(--wait-fg);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Studios */
+.studios {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.studioGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.studio {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.studio[data-later] {
+  background: transparent;
+  border-style: dashed;
+}
+
+.studioName {
+  font-weight: 600;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.later {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--surface-3);
+  color: var(--ink-2);
+}
+
+.studioText {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.studioStart {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+/* Side panels */
+.panel {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.panelHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.panelLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  text-decoration: none;
+  min-height: 32px;
+  color: var(--seat-blue);
+}
+
+.agentRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.agentRow .p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.agentName {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.factKey {
+  color: var(--ink-2);
+}
+
+.roomAgents {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.roomAgents li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.raName {
+  flex: 1;
+  font-size: 14px;
+}
+
+.raNote {
+  font-size: 12px;
+  color: var(--ink-3);
+  text-align: right;
+}
+
+.notInstalled {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.notInstalled > :first-child {
+  flex: none;
+  margin-top: 1px;
+}
+
+@media (max-width: 1100px) {
+  .home {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .side {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+@media (max-width: 760px) {
+  .side {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .studioGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .empty {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 22px;
+    gap: 18px;
+  }
+  .emptyArt {
+    width: 72px;
+    height: 72px;
+  }
+  .roomCard {
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+  }
+  .waiting {
+    grid-column: 2 / -1;
+    text-align: left;
+  }
+}
+
+@media (max-width: 560px) {
+  .title {
+    font-size: 32px;
+  }
+  .head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* A room row with its settings gear beside the main link (links never nest). */
+.roomWrap {
+  position: relative;
+}
+
+.roomWrap .roomCard {
+  padding-right: 60px;
+}
+
+.roomGear {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-2);
+}
+
+.roomGear:hover,
+.roomGear:focus-visible {
+  background: var(--surface-2);
+  color: var(--ink);
+}

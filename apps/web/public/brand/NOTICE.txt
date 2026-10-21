@@ -1,0 +1,3 @@
+chatgpt-logo.svg: OpenAI's ChatGPT mark from the Sign-in with ChatGPT DevKit (assets/brand/chatgpt-button-white-21.svg,
+commit 0a36fefeb913055c8c7a1a29b63d82b96b2e841a), under the DevKit's licence. Used only on the
+Sign in with ChatGPT button, as the DevKit intends.

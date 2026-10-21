@@ -1,0 +1,545 @@
+.page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 390px;
+  gap: 28px;
+  align-items: start;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 38px;
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+}
+
+.two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.field,
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0;
+}
+
+.hint,
+.small {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+
+.bad {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--bad-fg);
+}
+
+.address {
+  display: flex;
+  align-items: center;
+  height: 48px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.address[data-error] {
+  border-color: var(--bad-fg);
+}
+
+.address:focus-within {
+  outline: 2px solid var(--seat-blue);
+  outline-offset: 1px;
+}
+
+.prefix {
+  padding: 0 2px 0 12px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.address input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink);
+  outline: none;
+  padding-right: 12px;
+}
+
+.studios {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.studio {
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.studio:has(input:checked) {
+  border: 2px solid var(--ink);
+  padding: 14px;
+}
+
+.studio:has(input:focus-visible),
+.role:has(input:focus-visible) {
+  outline: 2px solid var(--seat-blue);
+  outline-offset: 2px;
+}
+
+.studio[data-disabled] {
+  cursor: not-allowed;
+  background: transparent;
+  border-style: dashed;
+  color: var(--ink-2);
+}
+
+.studioName {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.studioLanes {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.later {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--surface-3);
+  color: var(--ink-2);
+}
+
+.accepts {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  border-radius: 10px;
+  background: var(--surface-3);
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.accepts b {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.accepts > :first-child {
+  flex: none;
+}
+
+.roles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.role {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 13px 15px;
+  cursor: pointer;
+}
+
+.role:has(input:checked) {
+  border: 2px solid var(--seat-blue);
+  background: color-mix(in srgb, var(--seat-blue) 7%, var(--surface));
+  padding: 12px 14px;
+}
+
+.roleName {
+  display: block;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.roleClaims {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-2);
+}
+
+.chipsField {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  padding: 6px 10px;
+  background: var(--surface-2);
+}
+
+.chipsField[data-error] {
+  border-color: var(--bad-fg);
+}
+
+.chipsField:focus-within {
+  outline: 2px solid var(--seat-blue);
+  outline-offset: 1px;
+}
+
+.chipsField input {
+  flex: 1;
+  min-width: 140px;
+  height: 34px;
+  border: none;
+  font: inherit;
+  font-size: 14px;
+  background: transparent;
+  color: var(--ink);
+  outline: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 3px 4px 3px 10px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.chip button {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+}
+
+.chip button:hover {
+  background: var(--surface);
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+.cancel {
+  color: var(--ink-2);
+  font-size: 15px;
+  text-decoration: none;
+  padding: 12px 0;
+}
+
+/* Side */
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.panel {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.markRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.panelHead {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.lanes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+/* One slim row per lane: its name on the left, its owner on the right. */
+.laneMine,
+.laneOpen {
+  border-radius: 9px;
+  padding: 7px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.laneMine {
+  border: 1.5px solid var(--seat-blue);
+  background: color-mix(in srgb, var(--seat-blue) 6%, var(--surface));
+}
+
+.laneOpen {
+  border: 1.5px dashed var(--ink-3);
+  background: var(--surface);
+}
+
+.laneName {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.laneOwner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.note {
+  margin: 0;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.note > :first-child {
+  flex: none;
+  margin-top: 1px;
+}
+
+.runs,
+.starts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.runs li {
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.starts li {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.ok {
+  color: var(--ok-fg);
+  display: inline-flex;
+}
+
+.warn {
+  color: var(--warn-fg);
+  display: inline-flex;
+}
+
+.tier {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  text-align: right;
+}
+
+.link {
+  font-size: 12.5px;
+  text-decoration: none;
+  color: var(--seat-blue);
+}
+
+@media (max-width: 1100px) {
+  .page {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .side {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    align-items: start;
+  }
+}
+
+@media (max-width: 760px) {
+  .two,
+  .roles {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .studios {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .title {
+    font-size: 32px;
+  }
+  .footer {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    text-align: center;
+  }
+}
+
+/* Fit the whole form on one screen: tighter spacing on every window, more on short ones. */
+.form {
+  gap: 12px;
+}
+
+.group {
+  gap: 6px;
+}
+
+.studio {
+  padding: 12px 14px;
+  gap: 6px;
+}
+
+.studio:has(input:checked) {
+  padding: 11px 13px;
+}
+
+.accepts {
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+.role {
+  padding: 10px 14px;
+}
+
+.role:has(input:checked) {
+  padding: 9px 13px;
+}
+
+.panel {
+  padding: 14px;
+  gap: 10px;
+}
+
+.laneOwner {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+@media (max-height: 820px) and (min-width: 761px) {
+  .title {
+    font-size: 30px;
+  }
+  .markRow :global(svg) {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+.alone {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.alone input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--seat-blue);
+}

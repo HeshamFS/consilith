@@ -1,0 +1,952 @@
+/* The Room: a full-window dotted canvas with floating chrome (top bar, left deck, bottom docks).
+ * Light and dark come from the tokens only. Phones get a bottom tab bar and sheets. */
+
+.room {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--bg-dot) 1.2px, transparent 1.2px);
+  background-size: 24px 24px;
+  color: var(--ink);
+}
+
+.floating {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+
+/* Top bar */
+.top {
+  position: absolute;
+  top: 16px;
+  left: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.top > * {
+  pointer-events: auto;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 0 1 auto;
+  color: inherit;
+  text-decoration: none;
+}
+
+.titleText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.roomName {
+  font-weight: 600;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.roomMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.liveDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--live);
+  flex: none;
+}
+
+.liveDot[data-state="connecting"] {
+  background: var(--wait-fg);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.liveDot[data-state="offline"] {
+  background: var(--bad-fg);
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.presence {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px;
+  border-radius: 999px;
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.person {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 4px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 2px solid transparent;
+  flex: none;
+  font: inherit;
+  color: inherit;
+  cursor: default;
+}
+
+.person[data-me] {
+  border-color: var(--c);
+}
+
+.personText {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  text-align: left;
+}
+
+.personName {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.personStatus {
+  font-size: 11px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.personStatus[data-idle] {
+  color: var(--ink-3);
+}
+
+.openSeat {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 999px;
+  border: 1.5px dashed var(--ink-3);
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+}
+
+.openSeat:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.sep {
+  width: 1px;
+  height: 24px;
+  background: var(--line);
+  flex: none;
+  margin: 0 4px;
+}
+
+.roomAgents {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px 0 4px;
+  flex: none;
+}
+
+.ra {
+  position: relative;
+  display: inline-flex;
+}
+
+.ra::after {
+  content: "";
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--ink-3);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.ra[data-on]::after {
+  background: var(--live);
+}
+
+.raLabel {
+  font-size: 12px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.viewAs {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+}
+
+.viewAs {
+  border: 1px solid var(--line);
+  margin: 0;
+  min-width: 0;
+}
+
+.viewAsLabel {
+  float: left;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  padding: 0 6px 0 8px;
+  white-space: nowrap;
+}
+
+.viewer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.viewer[aria-pressed="true"] {
+  background: var(--surface-3);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.viewer::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--c);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  color: var(--ink);
+}
+
+.pillPrimary {
+  background: var(--ink);
+  color: var(--ink-inverse);
+  border: 1px solid var(--ink);
+}
+
+/* Left deck */
+.deck {
+  position: absolute;
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 22px;
+}
+
+.deckBtn {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+  text-decoration: none;
+}
+
+.deckBtn:hover {
+  background: var(--surface-2);
+}
+
+.deckBtn[aria-current="page"],
+.deckBtn[aria-pressed="true"] {
+  background: var(--surface-3);
+}
+
+.deckBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.deckBtn[data-tip]:hover::after,
+.deckBtn[data-tip]:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--ink-inverse);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 40;
+}
+
+.deckStart {
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--ink-inverse);
+}
+
+.deckStart:hover {
+  background: var(--ink);
+  opacity: 0.9;
+}
+
+.deckSep {
+  width: 28px;
+  height: 1px;
+  background: var(--line);
+  margin: 4px 0;
+}
+
+.deckMe {
+  position: relative;
+}
+
+.deckMe .badge {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--surface);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+/* Canvas */
+.canvas {
+  position: absolute;
+  inset: 88px 24px 112px 104px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 24px 0 40px;
+}
+
+.canvas > * {
+  flex: none;
+}
+
+.center {
+  margin-block: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  width: min(640px, 100%);
+}
+
+.lanesCard {
+  width: 100%;
+  border-radius: 18px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cardHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.caps {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.ownedOk {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ok-fg);
+}
+
+.ownedWait {
+  font-size: 13px;
+  color: var(--wait-fg);
+}
+
+.lanes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.lane {
+  border-radius: 12px;
+  padding: 14px 16px;
+  border: 1.5px solid var(--c, var(--line-strong));
+  background: color-mix(in srgb, var(--c, transparent) 6%, var(--surface));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.lane[data-open] {
+  border-style: dashed;
+  border-color: var(--ink-3);
+  background: var(--surface);
+}
+
+.laneHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.laneName {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.laneOwner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.smallBtn {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.smallBtn:hover {
+  background: var(--surface-2);
+}
+
+.smallBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.starts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+}
+
+.startsLine {
+  font-size: 14px;
+  color: var(--ink-2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.startBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.startBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Bottom docks */
+.status {
+  position: absolute;
+  left: 20px;
+  bottom: 18px;
+  z-index: 15;
+  display: flex;
+  gap: 8px;
+}
+
+.statusChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.waiting {
+  position: absolute;
+  right: 20px;
+  bottom: 18px;
+  z-index: 15;
+  width: min(380px, calc(100vw - 40px));
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.waitingHead {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.count {
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.waitingLast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.waitingLast span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ago {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+/* Side sheets */
+.scrim {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+  z-index: 40;
+  border: none;
+  padding: 0;
+  cursor: default;
+}
+
+.sheet {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  bottom: 16px;
+  width: min(800px, calc(100vw - 32px));
+  z-index: 41;
+  border-radius: 22px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: var(--shadow-strong);
+}
+
+.sheetNarrow {
+  width: min(460px, calc(100vw - 32px));
+}
+
+.sheetHead {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.sheetTitle {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.sheetSub {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.close {
+  margin-left: auto;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.sheetBody {
+  flex: 1;
+  overflow: auto;
+  padding: 18px 22px 24px;
+}
+
+.logList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.logList li {
+  display: grid;
+  grid-template-columns: 64px 64px minmax(0, 1fr);
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  align-items: baseline;
+}
+
+.proto {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+.proto[data-p="AG-UI"] {
+  color: var(--p-agui);
+}
+
+.proto[data-p="A2UI"] {
+  color: var(--p-a2ui);
+}
+
+.proto[data-p="A2A"] {
+  color: var(--p-a2a);
+}
+
+.proto[data-p="MCP"] {
+  color: var(--p-mcp);
+}
+
+.proto[data-p="ROOM"] {
+  color: var(--ink-3);
+}
+
+.empty {
+  padding: 28px 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--ink-3);
+}
+
+.banner {
+  position: absolute;
+  left: 50%;
+  top: 84px;
+  transform: translateX(-50%);
+  z-index: 25;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  background: var(--bad-bg);
+  color: var(--bad-fg);
+  border: 1px solid var(--bad-fg);
+}
+
+.dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--wait-fg);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.drawTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.bad {
+  margin: 0;
+  font-size: 13px;
+  color: var(--bad-fg);
+}
+
+.plain {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+}
+
+.loadTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 30px;
+}
+
+.loadText {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+/* Tablet: the presence strip shortens, the room agents collapse to icons. */
+@media (max-width: 1599px) {
+  .raLabel {
+    display: none;
+  }
+}
+
+@media (max-width: 1279px) {
+  .viewAsLabel {
+    display: none;
+  }
+  .personStatus {
+    display: none;
+  }
+}
+
+@media (max-width: 1023px) {
+  .personText {
+    display: none;
+  }
+  .person {
+    padding: 3px;
+  }
+}
+
+/* Phone: top bar on two rows, the deck becomes a bottom tab bar, sheets cover the screen. */
+@media (max-width: 767px) {
+  .top {
+    top: 10px;
+    left: 12px;
+    right: 12px;
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+  .title {
+    flex: 1 1 0;
+  }
+  .presence {
+    order: 3;
+    flex: 1 1 100%;
+  }
+  .personText {
+    display: none;
+  }
+  .person {
+    padding: 3px;
+  }
+  .viewAs,
+  .hideOnPhone {
+    display: none;
+  }
+  .pill {
+    height: 40px;
+    padding: 0 12px;
+  }
+  .deck {
+    left: 8px;
+    right: 8px;
+    top: auto;
+    bottom: 8px;
+    transform: none;
+    flex-direction: row;
+    justify-content: space-between;
+    border-radius: 18px;
+    padding: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 2px;
+  }
+  .deckSep {
+    width: 1px;
+    height: 28px;
+    margin: 0 2px;
+    flex: none;
+  }
+  .deckBtn {
+    flex: none;
+  }
+  .deckBtn[data-tip]:hover::after,
+  .deckBtn[data-tip]:focus-visible::after {
+    display: none;
+  }
+  .canvas {
+    inset: 108px 0 132px 0;
+    padding: 12px 12px 24px;
+  }
+  .status {
+    display: none;
+  }
+  .waiting {
+    left: 8px;
+    right: 8px;
+    width: auto;
+    bottom: 72px;
+  }
+  .waitingLast {
+    display: none;
+  }
+  .lanes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sheet,
+  .sheetNarrow {
+    inset: 0;
+    width: auto;
+    border-radius: 0;
+  }
+  .banner {
+    top: 112px;
+  }
+  .logList li {
+    grid-template-columns: 52px minmax(0, 1fr);
+  }
+  .logList li > :first-child {
+    display: none;
+  }
+}

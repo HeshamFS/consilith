@@ -1,0 +1,392 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.dead {
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: center;
+}
+
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.caps {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-3);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.addr {
+  text-transform: none;
+  letter-spacing: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 38px;
+  line-height: 1.08;
+  letter-spacing: -0.015em;
+  overflow-wrap: anywhere;
+}
+
+.title i {
+  font-weight: 400;
+}
+
+.lede {
+  margin: 10px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 30px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.group {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0;
+}
+
+.small {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.bad {
+  margin: 0;
+  font-size: 13px;
+  color: var(--bad-fg);
+}
+
+.roles {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.role {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+}
+
+.role:has(input:checked) {
+  border: 2px solid var(--me);
+  background: color-mix(in srgb, var(--me) 7%, var(--surface));
+  padding: 11px 13px;
+}
+
+.role:has(input:focus-visible),
+.agent:has(input:focus-visible) {
+  outline: 2px solid var(--seat-blue);
+  outline-offset: 2px;
+}
+
+.roleBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.roleName {
+  display: block;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.claims {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-2);
+}
+
+.agents {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.agent {
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.agent:has(input:checked) {
+  border: 2px solid var(--me);
+  padding: 12px;
+}
+
+.starts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 12px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  padding: 12px 14px;
+}
+
+.starts ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 12.5px;
+}
+
+.starts li {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.chip {
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--me) 10%, var(--surface));
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+/* The room */
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.roomBox {
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--bg-dot) 1.1px, transparent 1.1px);
+  background-size: 18px 18px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.markRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.people {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.people li {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  padding: 10px 12px;
+}
+
+.personRow,
+.agentRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.personName {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.agentRow {
+  padding-left: 4px;
+  font-size: 12.5px;
+}
+
+.lanes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.laneTaken,
+.laneMine,
+.laneOpen {
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.laneTaken {
+  border: 1.5px solid var(--c);
+  background: color-mix(in srgb, var(--c) 7%, var(--surface));
+}
+
+.laneMine {
+  border: 1.5px dashed var(--c);
+  background: color-mix(in srgb, var(--c) 7%, var(--surface));
+}
+
+.laneOpen {
+  border: 1.5px dashed var(--ink-3);
+  background: var(--surface);
+}
+
+.laneName {
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.laneWho {
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+
+.roomAgents {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.note {
+  margin: 0;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.note > :first-child {
+  flex: none;
+  margin-top: 1px;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+.cancel {
+  color: var(--ink-2);
+  font-size: 15px;
+  text-decoration: none;
+  padding: 12px 0;
+}
+
+@media (max-width: 900px) {
+  .cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .title {
+    font-size: 32px;
+  }
+}
+
+@media (max-width: 560px) {
+  .top {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .agents {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .title {
+    font-size: 28px;
+  }
+  .footer {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    text-align: center;
+  }
+}

@@ -1,0 +1,332 @@
+.page {
+  /* The card and the drafting lines share one height, so the lines always frame the card with
+   * the same gap above and below, whatever the window height. */
+  --card-h: 560px;
+  --frame-gap: 12px;
+  position: relative;
+  min-height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Thin drafting lines framing the card, as on the approved board. */
+.rules {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--line), var(--line)) calc(50% - 250px) 0 / 1px 100% no-repeat,
+    linear-gradient(var(--line), var(--line)) calc(50% + 249px) 0 / 1px 100% no-repeat;
+}
+
+.art {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* Each piece sits in the middle of its quarter: left or right of the card, above or below the
+ * horizontal centre line. */
+.artSketch,
+.artGrains {
+  left: calc((50% - 250px) / 2);
+  transform: translate(-50%, -50%);
+}
+
+.artLattice,
+.artCursors {
+  right: calc((50% - 250px) / 2);
+  transform: translate(50%, -50%);
+}
+
+.artSketch,
+.artLattice {
+  top: calc(50% - var(--card-h) / 4);
+}
+
+.artGrains,
+.artCursors {
+  top: calc(50% + var(--card-h) / 4);
+}
+
+.center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.corner {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 2;
+}
+
+.card {
+  width: 500px;
+  max-width: 100%;
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  padding: 30px 44px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 18px;
+}
+
+/* The horizontal drafting lines hug the card, a few pixels above and below it. */
+.card::before,
+.card::after {
+  content: "";
+  position: absolute;
+  left: -100vw;
+  right: -100vw;
+  height: 1px;
+  background: var(--line);
+  pointer-events: none;
+}
+
+.card::before {
+  top: calc(-1px - var(--frame-gap));
+}
+
+.card::after {
+  bottom: calc(-1px - var(--frame-gap));
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+}
+
+.word {
+  font-weight: 600;
+  font-size: 22px;
+  letter-spacing: -0.03em;
+}
+
+.lead {
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 44px;
+  line-height: 1.04;
+  letter-spacing: -0.015em;
+}
+
+.title i {
+  font-weight: 400;
+}
+
+.sub {
+  margin: 12px auto 0;
+  max-width: 360px;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.or span {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.github,
+.githubOff {
+  min-height: 48px;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-weight: 500;
+  font-size: 15px;
+  text-decoration: none;
+}
+
+.github:hover {
+  background: var(--surface-2);
+}
+
+.githubOff {
+  color: var(--ink-3);
+  border-style: dashed;
+}
+
+.offTag {
+  font-size: 11px;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+}
+
+.foot {
+  font-size: 13px;
+  color: var(--ink-2);
+  text-align: center;
+}
+
+.sent {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.sent p {
+  margin: 4px 0 0;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+
+.dev {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px dashed var(--line-strong);
+  width: 100%;
+}
+
+.devTag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--warn-fg);
+  background: var(--warn-bg);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.devLink {
+  font-weight: 600;
+}
+
+.devWait {
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.tagline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 24px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  color: var(--ink);
+}
+
+.welcomeText {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  animation: welcomeIn 0.7s ease-out 2.3s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcomeText {
+    /* biome-ignore lint/complexity/noImportantStyles: overrides the global reduced-motion cut */
+    animation-duration: 0.7s !important;
+  }
+}
+
+@keyframes welcomeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* Narrower screens: no side art; the card alone, centred. */
+@media (max-width: 1279px) {
+  .art {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .rules {
+    display: none;
+  }
+  .center {
+    position: relative;
+    flex: 1;
+    padding: 0;
+    align-items: stretch;
+  }
+  .corner {
+    top: 12px;
+    right: 12px;
+  }
+  .card {
+    width: 100%;
+    min-height: 100dvh;
+    border: none;
+    box-shadow: none;
+    padding: 32px 20px 72px;
+    justify-content: flex-start;
+  }
+  .title {
+    font-size: 36px;
+  }
+}
+
+/* Short windows: the tagline would touch the card. */
+@media (max-height: 760px) {
+  .tagline {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .card::before,
+  .card::after {
+    display: none;
+  }
+}

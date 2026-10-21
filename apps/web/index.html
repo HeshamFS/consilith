@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FBFAF7" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1C1B18" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>Consilith</title>
+    <script>
+      // Apply the saved mode before first paint so there is no flash; the app takes over after.
+      try {
+        var m = localStorage.getItem("consilith.theme");
+        if (m === "light" || m === "dark") document.documentElement.dataset.theme = m;
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

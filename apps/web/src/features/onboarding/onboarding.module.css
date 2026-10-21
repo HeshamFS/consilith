@@ -1,0 +1,594 @@
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 38px;
+  line-height: 1.08;
+  letter-spacing: -0.015em;
+}
+
+.lede {
+  margin: 10px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  max-width: 560px;
+}
+
+.cols {
+  flex: 1;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) 290px;
+  gap: 16px 36px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 18px;
+  min-width: 0;
+}
+
+.fieldset {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.legend {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0;
+  margin-bottom: 2px;
+}
+
+.hint,
+.small {
+  font-size: 12.5px;
+  color: var(--ink-3);
+  line-height: 1.45;
+}
+
+.swatches {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.swatch {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 3px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--line-strong);
+  cursor: pointer;
+}
+
+.swatch:has(input:checked) {
+  box-shadow: 0 0 0 2px var(--ink);
+}
+
+.swatch:has(input:focus-visible) {
+  outline: 2px solid var(--seat-blue);
+  outline-offset: 3px;
+}
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 10px 15px;
+  cursor: pointer;
+}
+
+.choice:has(input:checked) {
+  border: 2px solid var(--seat-blue);
+  background: color-mix(in srgb, var(--seat-blue) 7%, var(--surface));
+  padding: 9px 14px;
+}
+
+.choice input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--seat-blue);
+  flex: none;
+  margin: 0;
+}
+
+.choiceBody {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.choiceTitle {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.skillLine {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.55;
+  color: var(--p-agui);
+  margin-top: 2px;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.caps {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+  text-transform: uppercase;
+}
+
+.previewBox {
+  flex: 1;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--bg-dot) 1.1px, transparent 1.1px);
+  background-size: 18px 18px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pill {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px 4px 4px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.cursor {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+
+.cursorTag {
+  margin-top: 14px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  color: var(--on-accent);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.agentCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  padding: 12px 14px;
+}
+
+.agentHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.agentName {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Room for three rows of skills, so switching discipline never changes the page height. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 5px;
+  min-height: 70px;
+}
+
+.chip {
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--seat-blue) 9%, var(--surface));
+  color: var(--p-agui);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+.footer {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+  gap: 12px;
+}
+
+.segment {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+/* Titles share one baseline; a note that wraps grows downwards, never shifts its title up. */
+.segOpt {
+  min-height: 44px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  text-align: center;
+  padding: 4px;
+}
+
+.legendRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 0;
+  margin-bottom: 2px;
+}
+
+.soonInline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.row3 {
+  display: grid;
+  grid-template-columns: minmax(0, 150px) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: end;
+}
+
+.segOpt:has(input:checked) {
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.segOpt strong {
+  font-size: 13px;
+}
+
+.segOpt span {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.kinds {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.kind {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  padding: 16px;
+  cursor: pointer;
+  background: var(--surface);
+}
+
+.kind:has(input:checked) {
+  border: 2px solid var(--seat-blue);
+  padding: 15px;
+  background: color-mix(in srgb, var(--seat-blue) 6%, var(--surface));
+}
+
+.kind strong {
+  font-size: 16px;
+}
+
+.kind span {
+  font-size: 13.5px;
+  color: var(--ink-2);
+  line-height: 1.45;
+}
+
+.row2 {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+/* "Continue with ChatGPT", after the DevKit's button: solid, 45 px, 12 px radius, the mark on
+ * the left. Black in light mode and white in dark mode, with the mark in the text colour. */
+.chatgpt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 46px;
+  padding: 12px 20px;
+  border-radius: 12px;
+  border: 0;
+  background: var(--ink);
+  color: var(--ink-inverse);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.chatgpt:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.chatgpt:active:not(:disabled) {
+  opacity: 0.72;
+}
+
+.chatgpt:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.chatgpt[aria-pressed="true"] {
+  outline: 2px solid var(--seat-blue);
+  outline-offset: 2px;
+}
+
+/* Bring your own agent: the URL, then three short steps in the space the model fields use. */
+.bring {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.steps {
+  list-style: none;
+  counter-reset: step;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.steps li {
+  counter-increment: step;
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 8px;
+}
+
+.steps li::before {
+  content: counter(step);
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+}
+
+.steps strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.steps code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.learn {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  align-self: flex-start;
+  font-size: 13px;
+  color: var(--seat-blue);
+}
+
+.learn:hover {
+  text-decoration: underline;
+}
+
+/* Connected: one slim row, the account on the left, Disconnect on the right. */
+.chatgptOn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 0 6px 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.chatgptOn:has([aria-pressed="true"]) {
+  border-color: var(--seat-blue);
+}
+
+.chatgptUse {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  padding: 12px 0;
+}
+
+.chatgptOff {
+  flex: none;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.chatgptOff:hover {
+  background: var(--surface-3);
+  color: var(--ink);
+}
+
+.chatgptMark {
+  width: 21px;
+  height: 21px;
+  flex: none;
+  background: currentColor;
+  mask: url("/brand/chatgpt-logo.svg") center / contain no-repeat;
+}
+
+.select {
+  min-height: 48px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  padding: 0 12px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 15px;
+  width: 100%;
+}
+
+.soon {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--surface-2);
+}
+
+.soonTag {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--surface-3);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.cardRows {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 8px 10px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.ok {
+  font-size: 12.5px;
+  color: var(--ok-fg);
+}
+
+.bad {
+  font-size: 12.5px;
+  color: var(--bad-fg);
+}
+
+@media (max-width: 900px) {
+  .cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .title {
+    font-size: 32px;
+  }
+}
+
+@media (max-width: 560px) {
+  .segment {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .kinds,
+  .row2,
+  .row3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .title {
+    font-size: 28px;
+  }
+  .footer {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+}
+
+@media (max-height: 800px) and (min-width: 561px) {
+  .title {
+    font-size: 32px;
+  }
+  .form {
+    gap: 14px;
+  }
+}
