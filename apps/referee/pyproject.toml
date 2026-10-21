@@ -1,0 +1,25 @@
+[project]
+name = "consilith-referee"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "consilith-contracts",
+  "consilith-plugin-runtime",
+  "fastapi==0.142.2",
+  "uvicorn==0.54.0",
+  "pydantic-settings==2.15.0",
+  "a2a-sdk[http-server]==1.2.2",
+  "mcp==2.3.0",
+  "httpx==0.28.1",
+  "cryptography==50.0.2",
+]
+
+[project.scripts]
+consilith-referee = "consilith_referee.service:main"
+
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/consilith_referee"]
