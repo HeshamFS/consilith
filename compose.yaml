@@ -1,0 +1,4 @@
+# Service membership is selected by deployment.json.
+# First run: python tools/docker_stack.py config
+include:
+  - .docker/compose.generated.json
