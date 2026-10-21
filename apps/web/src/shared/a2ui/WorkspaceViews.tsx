@@ -1,20 +1,33 @@
+import { ArtifactSequence } from "./ArtifactSequence";
 import { DataArtifact } from "./DataArtifact";
+import { parseImageSequence } from "./imageSequence";
 
 export { DataArtifact } from "./DataArtifact";
 
 import { useEffect, useState } from "react";
-import type { FieldDef } from "@/shared/domain/disciplines";
+import type { Capability, FieldDef } from "@/shared/domain/disciplines";
 import { Button, Mark } from "@/shared/ui";
 import s from "./a2ui.module.css";
+import { intakeMediaType } from "./artifactIntake";
+import { type ImageActivity, ImageStage } from "./ImageStage";
 import type { A2UIAction } from "./Renderer";
 import { useFieldDraft } from "./useFieldDraft";
 
 export type WorkspaceActions = {
+  imageActivity?: ImageActivity | undefined;
   scope?: string | undefined;
   onAction?: ((action: A2UIAction) => Promise<void>) | undefined;
   loadArtifact?: ((sha: string) => Promise<Blob>) | undefined;
+  uploadArtifact?: ((file: File, mediaType: string) => Promise<{ sha256: string }>) | undefined;
 };
-type InputField = { definition: FieldDef; value: unknown; path: string; present: boolean };
+type InputField = {
+  definition: FieldDef;
+  value: unknown;
+  path: string;
+  present: boolean;
+  reviewCandidate?: { id: string; status: string } | null;
+  intakeBinding?: NonNullable<Capability["intakeBindings"]>[string];
+};
 type InputData = {
   title: string;
   case: string;
@@ -29,22 +42,33 @@ export function WorkspaceView({
   value,
   onAction,
   loadArtifact,
+  uploadArtifact,
   scope,
+  imageActivity,
 }: { kind: string; value: unknown } & WorkspaceActions) {
   if (!value || typeof value !== "object")
     return <p className={s.placeholder}>Waiting for bound data</p>;
   const d = value as Record<string, unknown>;
   if (kind === "SchemaForm" || kind === "ParameterGrid")
-    return <SchemaForm data={value as InputData} onAction={onAction} scope={scope} />;
+    return (
+      <SchemaForm
+        data={value as InputData}
+        onAction={onAction}
+        scope={scope}
+        uploadArtifact={uploadArtifact}
+      />
+    );
   if (kind === "JobStatus") return <Job data={d} onAction={onAction} />;
   if (kind === "ArtifactView")
     return (
-      <section className={s.panel}>
-        <h3 className={s.panelTitle}>Artifacts</h3>
+      <section className={s.artifactPanel} aria-label="Artifact workspace">
         {Array.isArray(d.items) && d.items.length ? (
-          d.items.map((item, i) => (
-            <Artifact key={String(item.sha256 ?? i)} descriptor={item} load={loadArtifact} />
-          ))
+          <ArtifactBrowser
+            key={`${scope}:${d.items.find((item) => item.source === "input")?.sha256 ?? "outputs"}`}
+            items={d.items.filter((item) => item.role !== "sequence-frame")}
+            load={loadArtifact}
+            activity={imageActivity ?? "idle"}
+          />
         ) : (
           <div className={s.artifactEmpty}>
             <Mark size={54} />
@@ -82,7 +106,12 @@ export function WorkspaceView({
     );
   return null;
 }
-function SchemaForm({ data, onAction, scope }: { data: InputData } & WorkspaceActions) {
+function SchemaForm({
+  data,
+  onAction,
+  scope,
+  uploadArtifact,
+}: { data: InputData } & WorkspaceActions) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   async function edit(field: InputField, value: unknown) {
@@ -120,6 +149,7 @@ function SchemaForm({ data, onAction, scope }: { data: InputData } & WorkspaceAc
           field={field}
           disabled={!data.editable || !onAction || busy !== null}
           onCommit={(v) => edit(field, v)}
+          uploadArtifact={uploadArtifact}
         />
       ))}
       {error ? (
@@ -135,11 +165,13 @@ function SchemaField({
   scope,
   disabled,
   onCommit,
+  uploadArtifact,
 }: {
   field: InputField;
   scope?: string | undefined;
   disabled: boolean;
   onCommit: (v: unknown) => Promise<void>;
+  uploadArtifact: WorkspaceActions["uploadArtifact"];
 }) {
   const f = field.definition;
   const display =
@@ -160,6 +192,7 @@ function SchemaField({
     reset,
   } = useFieldDraft(`${scope ?? "isolated"}:${field.path}`, field.value, display);
   const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const id = `field-${field.path}`;
   const numeric = f.kind === "number" || f.kind === "integer";
   const unit =
@@ -203,7 +236,81 @@ function SchemaField({
         {unit ? ` (${unit})` : ""}
         {f.required ? " *" : ""}
       </label>
-      {f.kind === "choice" ? (
+      {f.review_quantity || f.reviewQuantity ? (
+        <div className={s.reviewField}>
+          <p>
+            {field.value
+              ? "Review recorded for the selected result."
+              : "Review the output and its checks before approving."}
+          </p>
+          {field.value ? <small className={s.prov}>{String(field.value)}</small> : null}
+          <Button
+            disabled={
+              disabled ||
+              !field.reviewCandidate ||
+              field.reviewCandidate.status !== "current" ||
+              field.value === field.reviewCandidate.id
+            }
+            onClick={() => {
+              void onCommit(field.reviewCandidate?.id).catch(() => {});
+            }}
+          >
+            Approve reviewed result
+          </Button>
+          {field.value ? (
+            <Button
+              variant="ghost"
+              disabled={disabled}
+              onClick={() => {
+                void onCommit("").catch(() => {});
+              }}
+            >
+              Clear review
+            </Button>
+          ) : null}
+          {!field.value && field.reviewCandidate?.status !== "current" ? (
+            <span className={s.note}>A current result is required before approval.</span>
+          ) : null}
+        </div>
+      ) : field.intakeBinding?.valueKind === "artifact" ? (
+        <div>
+          <input
+            id={id}
+            type="file"
+            accept={field.intakeBinding.mediaType}
+            disabled={disabled || uploading || !uploadArtifact}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (!file || !uploadArtifact) return;
+              setUploading(true);
+              setError(null);
+              void (async () => {
+                try {
+                  const uploaded = await uploadArtifact(
+                    file,
+                    intakeMediaType(field.intakeBinding?.mediaType, file.type),
+                  );
+                  const previous =
+                    field.value && typeof field.value === "object" && !Array.isArray(field.value)
+                      ? field.value
+                      : {};
+                  await onCommit({ ...previous, artifact: uploaded.sha256 });
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : "Upload failed");
+                } finally {
+                  setUploading(false);
+                }
+              })();
+            }}
+          />
+          <span className={s.note}>
+            {uploading
+              ? "Storing input…"
+              : "Upload to replace this input. Dependent results must be recomputed."}
+          </span>
+        </div>
+      ) : f.kind === "choice" ? (
         <select
           id={id}
           value={draft}
@@ -319,12 +426,72 @@ type ArtifactDescriptor = {
   kind?: string;
   data?: unknown;
 };
+
+function ArtifactBrowser({
+  items,
+  load,
+  activity,
+}: {
+  items: ArtifactDescriptor[];
+  load: WorkspaceActions["loadArtifact"];
+  activity: ImageActivity;
+}) {
+  const [selected, setSelected] = useState<string | null>(null);
+  const identity = (item: ArtifactDescriptor) => item.sha256 ?? item.label ?? "artifact";
+  const active = items.find((item) => identity(item) === selected) ?? items[0];
+  return (
+    <div className={s.artifactBrowser}>
+      {items.length > 1 ? (
+        <div className={s.artifactTabs} role="tablist" aria-label="Stored artifacts">
+          {items.map((item) => (
+            <button
+              type="button"
+              key={identity(item)}
+              role="tab"
+              aria-selected={item === active}
+              tabIndex={item === active ? 0 : -1}
+              onKeyDown={(event) => {
+                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+                event.preventDefault();
+                const index = items.indexOf(item);
+                const next =
+                  event.key === "Home"
+                    ? 0
+                    : event.key === "End"
+                      ? items.length - 1
+                      : (index + (event.key === "ArrowRight" ? 1 : -1) + items.length) %
+                        items.length;
+                const target = items[next];
+                if (target) setSelected(identity(target));
+                event.currentTarget.parentElement
+                  ?.querySelectorAll<HTMLButtonElement>("button")
+                  [next]?.focus();
+              }}
+              onClick={() => setSelected(identity(item))}
+            >
+              {item.source === "input" ? "Source" : (item.label ?? "Artifact").replaceAll("_", " ")}
+              {item.source === "reviewed snapshot" ? <span> · reviewed</span> : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {active ? (
+        <div role="tabpanel" aria-label={active.label ?? "Artifact"}>
+          <Artifact key={identity(active)} descriptor={active} load={load} activity={activity} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function Artifact({
   descriptor,
   load,
+  activity,
 }: {
   descriptor: ArtifactDescriptor;
   load: WorkspaceActions["loadArtifact"];
+  activity: ImageActivity;
 }) {
   const [url, setUrl] = useState<string | null>(null);
   const [download, setDownload] = useState<string | null>(null);
@@ -363,6 +530,7 @@ function Artifact({
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [descriptor.sha256, descriptor.data, load]);
+  const sequence = parseImageSequence(data);
   return (
     <figure className={s.artifact}>
       <figcaption>
@@ -370,9 +538,17 @@ function Artifact({
         {descriptor.illustrative ? " · illustrative" : ""}
       </figcaption>
       {url ? (
-        <img src={url} alt={descriptor.label ?? "Stored artifact"} />
+        <ImageStage
+          key={url}
+          src={url}
+          alt={descriptor.label ?? "Stored artifact"}
+          activity={descriptor.source === "input" ? activity : "idle"}
+          assemble={descriptor.source === "input"}
+        />
       ) : text !== null ? (
         <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{text}</pre>
+      ) : sequence ? (
+        <ArtifactSequence sequence={sequence} load={load} />
       ) : data !== undefined ? (
         <DataArtifact data={data} />
       ) : null}

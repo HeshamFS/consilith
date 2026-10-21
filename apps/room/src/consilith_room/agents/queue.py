@@ -26,15 +26,31 @@ Solve = Callable[[RoomService, Actor, str, str], Awaitable[Any]]
 
 
 class Tier2Queue:
-    def __init__(self, store: Store, rooms: Callable[[str], RoomService], solve: Solve) -> None:
+    def __init__(
+        self,
+        store: Store,
+        rooms: Callable[[str], RoomService],
+        solve: Solve,
+        on_state_change: Callable[[RoomService, str], None] | None = None,
+    ) -> None:
         self.store = store
         self.rooms = rooms
         self.solve = solve
+        self.on_state_change = on_state_change
         self._wake = asyncio.Event()
         self._task: asyncio.Task[None] | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._idle = asyncio.Event()
         self._idle.set()
+
+    def _set_entry(self, room: RoomService, jid: str, entry: dict[str, Any]) -> None:
+        room.set_queue_entry(jid, entry)
+        if self.on_state_change is not None:
+            try:
+                self.on_state_change(room, str(entry["case"]))
+            except Exception:
+                # A presentation fault cannot change a durable computation outcome.
+                log.exception("could not publish queue state for %s", jid)
 
     def enqueue(
         self,
@@ -67,7 +83,7 @@ class Tier2Queue:
         }
         if revisions is not None:
             entry["revisions"] = revisions
-        room.set_queue_entry(jid, entry)
+        self._set_entry(room, jid, entry)
         try:
             caller_loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -129,7 +145,8 @@ class Tier2Queue:
             else Actor.person(req["id"])
         )
         self.store.update_job(jid, "running")
-        room.set_queue_entry(
+        self._set_entry(
+            room,
             jid,
             {
                 "id": jid,
@@ -151,7 +168,8 @@ class Tier2Queue:
                 "error": error,
             }
             self.store.update_job(jid, status, result=summary, error=error)
-            room.set_queue_entry(
+            self._set_entry(
+                room,
                 jid,
                 {
                     "id": jid,
@@ -167,7 +185,8 @@ class Tier2Queue:
         except Exception as exc:
             log.exception("tier-2 job %s failed", jid)
             self.store.update_job(jid, "failed", error=type(exc).__name__)
-            room.set_queue_entry(
+            self._set_entry(
+                room,
                 jid,
                 {
                     "id": jid,

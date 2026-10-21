@@ -745,7 +745,13 @@ class RoomService(RoomCore):
         ops: Patch = []
         if self.read("queue") is None:
             ops.append({"op": "add", "path": "/queue", "value": {}})
-        ops.append({"op": "add", "path": pointer("queue", job_id), "value": entry})
+        ops.append(
+            {
+                "op": "add",
+                "path": pointer("queue", job_id),
+                "value": {**entry, "updatedSeq": self.seq + 1},
+            }
+        )
         self._commit(
             Actor.backend(), "queue.update", ops, {"job": job_id, "status": entry.get("status")}
         )

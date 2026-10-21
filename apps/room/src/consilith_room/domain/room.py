@@ -512,6 +512,26 @@ class RoomCore:
                     lp.lane,
                     get(candidate, "twin", lp.case, lp.lane) or {},
                 )
+                lane = self.case_definitions()[lp.case].lane(lp.lane)
+                assert lane is not None
+                for field in lane.fields:
+                    if field.review_quantity is None:
+                        continue
+                    value = get(candidate, "twin", lp.case, lp.lane, field.name)
+                    if value is None or value == "":
+                        continue
+                    record = cast(dict[str, Any] | None, self.read("results", value))
+                    if (
+                        not isinstance(record, dict)
+                        or record.get("room") != self.id
+                        or record.get("case") != lp.case
+                        or record.get("quantity") != field.review_quantity
+                    ):
+                        raise SpecError(
+                            pointer("twin", lp.case, lp.lane, field.name),
+                            "review must reference a stored result "
+                            "of the declared quantity in this case",
+                        )
             except SpecError as exc:
                 raise SpecInvalid(exc.field, exc.message) from exc
         extra: Patch = []

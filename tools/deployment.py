@@ -18,10 +18,30 @@ ROOT = Path(__file__).resolve().parent.parent
 PLATFORM_SERVICES = frozenset({"room", "referee", "web", "siwc"})
 
 
+def state_dir() -> Path:
+    """Keep an existing deployment's credentials and catalog separate from source builds."""
+    value = os.environ.get("CONSILITH_DEPLOYMENT_STATE_DIR")
+    if value:
+        path = Path(value)
+        if not path.is_absolute():
+            raise ValueError("CONSILITH_DEPLOYMENT_STATE_DIR must be an absolute path")
+        return path
+    return ROOT / ".docker"
+
+
+def runtime_path(value: str) -> Path:
+    path = Path(value)
+    if path.is_absolute():
+        return path
+    if path.parts and path.parts[0] == ".docker":
+        return state_dir().joinpath(*path.parts[1:])
+    return ROOT / path
+
+
 @contextlib.contextmanager
 def deployment_guard():
     """Reject concurrent lifecycle mutations; the OS releases the lock after a crash."""
-    directory = ROOT / ".docker"
+    directory = state_dir()
     directory.mkdir(exist_ok=True)
     with (directory / "deployment.lock").open("a+b") as stream:
         stream.seek(0)
@@ -97,12 +117,12 @@ def validate_manifest(document: dict) -> None:
 
 
 def active_services() -> dict[str, str]:
-    path = ROOT / ".docker/active-services.json"
+    path = state_dir() / "active-services.json"
     return json.loads(path.read_text()) if path.exists() else {}
 
 
 def active_images() -> dict[str, str]:
-    path = ROOT / ".docker/active-images.json"
+    path = state_dir() / "active-images.json"
     return json.loads(path.read_text()) if path.exists() else {}
 
 
@@ -119,7 +139,7 @@ def bundle(service: str, entry: dict) -> None:
     config = entry.get("build")
     if not config:
         return
-    directory = ROOT / ".docker" / "build" / service
+    directory = state_dir() / "build" / service
     wheels = directory / "wheels"
     wheels.mkdir(parents=True, exist_ok=True)
     local_names = []
@@ -140,7 +160,7 @@ def bundle(service: str, entry: dict) -> None:
                 raise ValueError("wheel source cannot contain symbolic links")
             fingerprint.update(file.relative_to(source).as_posix().encode() + b"\0")
             fingerprint.update(file.read_bytes())
-        cached = ROOT / ".docker/wheel-cache" / fingerprint.hexdigest()
+        cached = state_dir() / "wheel-cache" / fingerprint.hexdigest()
         cached.mkdir(parents=True, exist_ok=True)
         if not list(cached.glob("*.whl")):
             subprocess.run(
@@ -204,7 +224,7 @@ def render(
     base = json.loads((ROOT / "docker/platform.compose.json").read_text())
     base["name"] = document["project"]
     services = base["services"]
-    private = ROOT / ".docker"
+    private = state_dir()
     private.mkdir(exist_ok=True)
     secret_file = private / "plugin-tokens.json"
     tokens = json.loads(secret_file.read_text()) if secret_file.exists() else {}
@@ -291,7 +311,7 @@ def render(
     secret_file.chmod(0o600)
     for secret in base.get("secrets", {}).values():
         if "file" in secret and not Path(secret["file"]).is_absolute():
-            secret["file"] = str(ROOT / secret["file"])
+            secret["file"] = str(runtime_path(secret["file"]))
     for service_name, spec in services.items():
         spec["logging"] = {
             "driver": "json-file",
@@ -299,9 +319,7 @@ def render(
         }
         for key in ("env_file",):
             if key in spec:
-                spec[key] = [
-                    str(ROOT / path) if not Path(path).is_absolute() else path for path in spec[key]
-                ]
+                spec[key] = [str(runtime_path(path)) for path in spec[key]]
         if "build" in spec and spec["build"].get("context") == ".":
             spec["build"]["context"] = str(ROOT)
         if "build" in spec:
@@ -322,7 +340,7 @@ def render(
 
 
 def publish_catalog(catalog: dict) -> None:
-    directory = ROOT / ".docker" / "catalog"
+    directory = state_dir() / "catalog"
     directory.mkdir(exist_ok=True)
     temporary = directory / "plugins.next.json"
     published = {**catalog, "generation": secrets.token_hex(16)}

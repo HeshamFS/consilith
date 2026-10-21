@@ -1,0 +1,182 @@
+.stage {
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--surface-2);
+  color: var(--ink);
+  isolation: isolate;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.overline {
+  font: 500 10px var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+}
+.dimensions {
+  color: var(--ink-3);
+  font: 10px var(--font-mono);
+}
+.toolbar button {
+  margin-left: auto;
+  background: transparent;
+  color: var(--ink-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  min-height: 32px;
+  padding: 6px 12px;
+  font: 11px var(--font-ui);
+  cursor: pointer;
+}
+.toolbar button:hover {
+  border-color: var(--seat-blue);
+  color: var(--seat-blue);
+}
+.toolbar button:focus-visible {
+  outline: 2px solid var(--seat-blue);
+  outline-offset: 2px;
+}
+.canvas {
+  position: relative;
+  overflow: hidden;
+  background: var(--viewport-bg);
+}
+.canvas .image {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: none;
+  border-radius: 0;
+}
+.assembly,
+.scanner,
+.tile,
+.scanGrid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.assembly {
+  z-index: 1;
+  background: var(--viewport-bg);
+  animation: clearAssembly 1.05s step-end forwards;
+}
+.tile {
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  animation: assembleTile 650ms var(--ease) var(--delay) both;
+}
+.scanner {
+  z-index: 2;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--seat-teal) 55%, transparent);
+}
+.scanGrid {
+  opacity: 0.12;
+  background-image:
+    linear-gradient(var(--seat-teal) 1px, transparent 1px),
+    linear-gradient(90deg, var(--seat-teal) 1px, transparent 1px);
+  background-size: 12.5% 12.5%;
+}
+.scanBeam {
+  position: absolute;
+  inset: -24% 0 auto;
+  height: 24%;
+  border-bottom: 2px solid var(--seat-teal);
+  background: linear-gradient(transparent, color-mix(in srgb, var(--seat-teal) 28%, transparent));
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--seat-teal) 30%, transparent);
+  animation: scanImage 2.6s linear infinite;
+}
+.targetTop,
+.targetBottom {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-color: var(--seat-teal);
+  border-style: solid;
+}
+.targetTop {
+  top: 12px;
+  left: 12px;
+  border-width: 2px 0 0 2px;
+}
+.targetBottom {
+  bottom: 12px;
+  right: 12px;
+  border-width: 0 2px 2px 0;
+}
+.status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border-top: 1px solid var(--line);
+  font: 11px / 1.5 var(--font-ui);
+  color: var(--ink-2);
+}
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  flex-shrink: 0;
+}
+.stage[data-activity="running"] .statusDot,
+.stage[data-activity="uploading"] .statusDot {
+  background: var(--seat-teal);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--seat-teal) 15%, transparent);
+  animation: activityPulse 1.6s ease-in-out infinite;
+}
+.stage[data-activity="failed"] .statusDot {
+  background: var(--bad-fg);
+}
+.preserved {
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: 10px;
+}
+@keyframes assembleTile {
+  from {
+    opacity: 0;
+    transform: translate(var(--drift-x), var(--drift-y)) scale(1.04);
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+}
+@keyframes clearAssembly {
+  to {
+    visibility: hidden;
+  }
+}
+@keyframes scanImage {
+  to {
+    top: 100%;
+  }
+}
+@keyframes activityPulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .assembly {
+    display: none;
+  }
+  .scanBeam {
+    animation: none;
+    top: 38%;
+  }
+  .stage[data-activity="running"] .statusDot,
+  .stage[data-activity="uploading"] .statusDot {
+    animation: none;
+  }
+}

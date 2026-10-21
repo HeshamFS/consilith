@@ -64,6 +64,24 @@ class FieldDef(Contract):
     choices: list[str] = Field(default_factory=list[str])
     required: bool = False
     label: str = ""
+    default: Any = None
+    human_only: bool = False
+    review_quantity: Identifier | None = None
+
+    @model_validator(mode="after")
+    def _defaults_and_review(self) -> Self:
+        if self.review_quantity is not None:
+            if self.kind != "text" or not self.human_only:
+                raise ValueError("review fields must be human-only text fields")
+            if self.default not in (None, ""):
+                raise ValueError("a review field cannot default to an approval")
+        if self.default is not None:
+            _validate_field(self, self.name, self.default)
+            # Defaults cross a JSON boundary and participate in canonical revisions.
+            from .base import canonical_bytes
+
+            canonical_bytes(self.default)
+        return self
 
 
 class LaneDef(Contract):

@@ -70,6 +70,14 @@
   outline: 2px solid var(--seat-blue);
   outline-offset: 2px;
 }
+.preview {
+  display: block;
+  width: 100%;
+  max-height: 300px;
+  object-fit: contain;
+  border-radius: 12px;
+  background: var(--viewport-bg);
+}
 
 .inline {
   display: flex;

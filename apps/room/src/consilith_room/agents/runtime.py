@@ -84,8 +84,13 @@ class Runtime:
             store,
             rooms,
             self._tier2_solve,
+            on_state_change=self._queue_surface,
         )
         self.kernel.tier2 = self.tier2
+
+    def _queue_surface(self, room: RoomService, case: str) -> None:
+        for viewer in self.composer.viewers(room):
+            self.composer.publish(room, case, viewer, "live")
 
     @registry_operation
     async def _tier2_solve(self, room: RoomService, who: Any, case: str, mode: str) -> Any:

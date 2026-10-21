@@ -1,55 +1,55 @@
 # Consilith
 
-**A multiplayer workspace where people and their AI agents work on the same problem, and every step can be traced.**
+A multiplayer agentic workspace with independently packaged capabilities. People and their agents collaborate through owned inputs, proposals, approvals, recorded execution and signed evidence. An agent composes a workspace from approved UI components; plugins provide the task knowledge and implementation.
 
-A Consilith room brings together several people, each with their own agent. Everyone owns their inputs. Agents make proposals, people approve them, each execution is recorded, and an independent referee checks the results and signs the evidence. The screen is not hand-built for each task: an agent composes the workspace from approved UI components, and plugins supply the task knowledge, tools and implementation.
+## What is included
 
-## How it works
+- `apps/room`: accounts, collaboration, agent orchestration, permissions and execution records.
+- `apps/referee`: independently configured checking and signed evidence.
+- `apps/web`: the branded React workspace and generative UI renderer.
+- `apps/siwc`: the containerized Sign in with ChatGPT bridge.
+- `packages/contracts` and `packages/plugin-runtime`: public schemas and isolated plugin transport.
+- `examples/agentic-plugin-template`: starter 1.1.2 with MCP tools, schemas, skills, knowledge, workflow, checker and an owner-approved proposal policy.
+- `plugins/microstructure`: independent experimental 2D reconstruction and grain-growth plugin, with MCP services, skills, knowledge and a standalone solver.
+- `docker`, `tools` and deployment manifests: reproducible container builds and plugin lifecycle operations.
 
-1. **A room is opened.** Members join with their own roles and lanes, and each member brings an agent: a hosted model, a ChatGPT plan through the sign-in bridge, or their own A2A agent.
-2. **Plugins provide the capability.** An installed plugin declares its input schema, MCP tools, workflow, checker, skills and knowledge. The platform discovers it and exposes only active, pinned resources to agents.
-3. **Agents compose the workspace.** The generative UI renderer receives A2UI surfaces and AG-UI streams and draws them only from the platform's approved components.
-4. **People decide.** Agents propose and owners approve. Nothing runs on an input without its owner's consent.
-5. **Execution is recorded and checked.** Runs are journaled and can be replayed. The referee checks the results independently and signs the evidence.
-
-## Repository layout
-
-| Path | What it holds |
-|---|---|
-| `apps/room` | Room server: accounts, collaboration, permissions, agent orchestration, protocols (A2A, MCP, AG-UI, A2UI) and execution records |
-| `apps/referee` | Independently configured checking and signed evidence |
-| `apps/web` | React workspace and generative UI renderer |
-| `apps/siwc` | Containerized Sign in with ChatGPT bridge |
-| `packages/contracts` | Public schemas shared by every service and plugin |
-| `packages/plugin-runtime` | Isolated plugin transport: server, client, worker and catalog |
-| `examples/agentic-plugin-template` | Starter plugin 1.1.2 with MCP tools, schemas, skills, knowledge, workflow, checker and an owner-approved proposal policy |
-| `docker`, `tools`, `deployment.json` | Reproducible container builds and plugin lifecycle operations |
-| `docs` | Architecture, plugin authoring, web API, Docker, development and bridge guides |
-
-The starter produces text, structured JSON and downloadable files, and an optional text-count operation shows numeric compatibility. Domain-specific scientific implementations are not included.
+The starter produces text, structured JSON and downloadable files without a numeric placeholder. An optional text-count operation demonstrates numeric compatibility. The optional microstructure plugin is included as experimental research software; its segmentation candidates require human review and its default kinetics are dimensionless scenarios, not experimentally calibrated predictions.
 
 ## Run locally with Docker
 
-You need Python 3.12, [uv](https://docs.astral.sh/uv/) and Docker with Linux containers. From the repository root:
+Install Python 3.12, uv and Docker with Linux containers enabled. From this repository root:
 
 ```sh
 python tools/docker_stack.py up
 python tools/docker_stack.py check
 ```
 
-Then open [http://127.0.0.1:8800](http://127.0.0.1:8800). The development deployment signs you in through a local mailbox. To enable ChatGPT, connect your own account at `/settings/agent`. A healthy bridge container does not mean an account is authorized.
+Open [Consilith](http://127.0.0.1:8800). The development deployment uses a local sign-in mailbox. Connect your own account at `/settings/agent` to enable ChatGPT; the bridge container being healthy does not mean an account is authorized. Account sessions and generated secrets never belong in Git.
 
-The first build fetches pinned dependencies and the separately licensed ChatGPT DevKit. Read [Docker operations](docs/docker.md) and [the bridge contract](docs/siwc.md), including its usage terms. This is a local development configuration, not an internet-facing production deployment. Account sessions and generated secrets never belong in Git.
+The initial build fetches pinned dependencies and the separately licensed ChatGPT DevKit. Read [Docker operations](docs/docker.md) and [the bridge contract](docs/siwc.md), including its usage terms. This is a local development configuration, not an internet-facing production deployment.
+
+## Run the microstructure showcase
+
+The default deployment remains domain-neutral with the starter plugin. To include the independently packaged microstructure plugin:
+
+```sh
+python tools/docker_stack.py up --manifest examples/deployment.microstructure.json
+python tools/docker_stack.py check --manifest examples/deployment.microstructure.json
+```
+
+Create a room using Clear-grain evolution, upload a clear-boundary image, run preparation, inspect the full image and material-domain mask, approve the result, then run evolution. Stored frames support playback and scrubbing. Image assembly and job activity effects are reusable GenUI features. Read the [plugin guide](plugins/microstructure/README.md) and [model assumptions](plugins/microstructure/MODEL.md) before interpreting results. No SAM weights or external solver are required.
+
+After approval, duration, interface energy and mobility can change without repeating segmentation; every run records its own settings and restarts from the approved initial map. Image, segmentation, material-mask and interface-width changes require a fresh review. The app currently limits each run to 20,000 stable solver steps and a bounded native-grid work budget. Longer continuation and automatic migration of existing pinned rooms are not implemented.
 
 ## Build your own plugin
 
-Copy the [starter package](examples/agentic-plugin-template/README.md) into its own repository and follow the [wiring guide](examples/agentic-plugin-template/DOMAIN_WIRING.md). Supply the manifest, input schema, MCP services, tools, workflow, checker, skills and knowledge, then roll it out:
+Copy the [starter package](examples/agentic-plugin-template/README.md) into its own repository and follow the [wiring guide](examples/agentic-plugin-template/DOMAIN_WIRING.md). Supply its manifest, input schema, MCP services, tools, workflow, checker, skills and knowledge. The platform discovers installed capabilities and exposes active, pinned resources to agents.
 
 ```sh
 python tools/docker_stack.py plugin-update --manifest deployment.json --plugin starter
 ```
 
-Each update is staged and validated before it is published. Existing rooms keep the release they were admitted with, so an incompatible replacement needs an explicit migration or a new room. New frontend primitives and host permissions need a platform contract extension.
+Updates stage and validate candidates before publication. Existing rooms keep their admitted release identity; incompatible replacement requires explicit migration or a new room. New frontend primitives and host permissions require a platform contract extension.
 
 ## Documentation
 
@@ -57,14 +57,6 @@ Each update is staged and validated before it is published. Existing rooms keep 
 - [Plugin authoring](docs/plugin-authoring.md)
 - [Web API](docs/web-api.md)
 - [Development and builds](docs/development.md)
-- [Docker operations](docs/docker.md)
-- [Sign in with ChatGPT bridge](docs/siwc.md)
 - [Dependency notices](DEPENDENCIES.md)
 
-## License
-
-The license will be defined later. Until then, all rights are reserved. Third-party dependencies remain under their own licenses; see [DEPENDENCIES.md](DEPENDENCIES.md).
-
----
-
-Copyright © 2026 Hesham Salama. All rights reserved.
+The source snapshot is prepared for publication. Private specifications, agent guidance, test suites, credentials, run receipts and build products are intentionally excluded. No repository-wide open-source license has been selected; dependency licenses remain applicable.
