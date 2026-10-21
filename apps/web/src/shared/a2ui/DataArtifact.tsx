@@ -1,3 +1,4 @@
+import { JsonPreview } from "./JsonPreview";
 /** Generic formats: bounded label map, numeric XY series, table, or structural inspection. */
 export function DataArtifact({ data }: { data: unknown }) {
   const d = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
@@ -109,20 +110,28 @@ export function DataArtifact({ data }: { data: unknown }) {
       xrange = Math.max(...x) - xmin || 1,
       ymin = Math.min(...y),
       yrange = Math.max(...y) - ymin || 1;
+    const title = typeof d.title === "string" ? d.title.slice(0, 200) : undefined;
+    const xLabel = typeof d.xLabel === "string" ? d.xLabel.slice(0, 120) : undefined;
+    const yLabel = typeof d.yLabel === "string" ? d.yLabel.slice(0, 120) : undefined;
     return (
-      <svg viewBox="0 0 640 260" role="img" aria-label="Stored XY series">
-        <polyline
-          points={x
-            .map(
-              (v, i) =>
-                `${20 + ((v - xmin) / xrange) * 600},${240 - (((y[i] ?? ymin) - ymin) / yrange) * 220}`,
-            )
-            .join(" ")}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-        />
-      </svg>
+      <div>
+        {title ? <h4>{title}</h4> : null}
+        {yLabel ? <p>{yLabel}</p> : null}
+        <svg viewBox="0 0 640 260" role="img" aria-label={title ?? "Stored XY series"}>
+          <polyline
+            points={x
+              .map(
+                (v, i) =>
+                  `${20 + ((v - xmin) / xrange) * 600},${240 - (((y[i] ?? ymin) - ymin) / yrange) * 220}`,
+              )
+              .join(" ")}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          />
+        </svg>
+        {xLabel ? <p style={{ textAlign: "center" }}>{xLabel}</p> : null}
+      </div>
     );
   }
   if (Array.isArray(d.rows) && d.rows.length <= 1000 && Array.isArray(d.columns)) {
@@ -152,7 +161,7 @@ export function DataArtifact({ data }: { data: unknown }) {
       </table>
     );
   }
-  return <pre>{JSON.stringify(data, null, 2).slice(0, 20000)}</pre>;
+  return <JsonPreview value={data} limit={20000} />;
 }
 
 /** Presentation-only interpolation of supplied scalar values, never scientific inference. */

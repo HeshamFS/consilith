@@ -38,6 +38,35 @@ Declare input fields in `CaseDef` lanes and presentation bindings in the plugin 
 
 Contract v1 supports the canonical Run action, field edits and approval decisions. Unsupported presentation action or input-schema overrides are rejected at registration instead of being advertised and silently ignored. Typed output version 1 supports number, text, category, JSON and artifact-only records. Nonnumeric results do not require dummy quantities. Signatures and replay bind kind, payload and content-addressed artifact references. Images, label maps, scalar meshes, XY plots, tables and JSON use existing generic renderers. Adding a new visual primitive requires a versioned platform catalog extension; adding a new domain using existing primitives does not.
 
+Review and sequence support extends these generic contracts:
+
+- `FieldDef.default` supplies a validated initial value, copied into the stored room inputs
+  and revision hashes. Numeric defaults use the usual `{v, unit}` representation.
+- A text field with `human_only=True` and `review_quantity` binds explicit user approval
+  to a canonical result ID. Direct agent edits are refused; the owner can accept a
+  proposal explicitly. The generic form offers the current matching result for review.
+  Plugins must check the selected immutable result against the current source and
+  parameters before executing. Approval alone is not a scientific-validity claim.
+- Approved result artifacts and sibling artifacts from that same run remain visible as
+  reviewed snapshots when an approval edit makes the original run historical.
+- A JSON artifact shaped as `{kind: "image-sequence", frames: [{sha256, label, time}],
+  timeUnit, description}` uses generic stored-frame playback. Include each raster as a
+  normal content-addressed output artifact with role `sequence-frame`; the room still
+  authorizes access to every frame. The renderer accepts 2–201 PNG/JPEG/WebP frames,
+  permits pause, replay and scrubbing, and never interpolates computed data. The output
+  contract allows 64 MiB of aggregate inline artifact bytes, at most 16 MiB per artifact,
+  and up to 128 artifacts per output. Plugin RPC messages remain bounded at 128 MiB,
+  including base64 expansion. Keep large arrays compressed and image frames individually
+  content addressed so clients can retrieve only the frame they need.
+
+  Plugin host and worker timeouts default to 660 seconds, allowing the queued tool's
+  600-second deadline plus callback and review cleanup. Operators can set
+  `CONSILITH_PLUGIN_TIMEOUT` consistently on host and worker (1–7200 seconds). This does
+  not increase the tool deadline or the requesting agent's compute allowance.
+- XY JSON artifacts may include escaped `title`, `xLabel` and `yLabel` strings.
+
+These fields require the matching platform build. They do not change an older room's pinned schema; replacing an admitted release still requires explicit migration or a new room.
+
 Intake choices are identified by capability and input kind together, so independent plugins can both accept a file or text. The server checks uploads against generic platform formats and the room's pinned plugin MIME declarations. Text knowledge can be read in the workspace; binary knowledge is offered as an explicit download. A removed installed plugin remains visible through its historical room descriptor, with execution availability reported separately.
 
 ## Install, activate and replace
@@ -56,3 +85,8 @@ The platform containers contain contracts, the generic runtime and host applicat
 Run `python tools/check.py` after installing the source-check dependencies described in [development](development.md). It checks this public source snapshot; regression suites and private qualification receipts are maintained separately.
 
 Scientific rigor is a separate gate: convergence, reference data, method independence, uncertainty and validity domains are not established by these architecture tests.
+
+
+## Image presentation
+
+The trusted GenUI renderer presents supplied image bytes with optional tile assembly and indeterminate scanning bound to the surface's JobStatus data path. Queued, running, failed and completed states remain distinct. No progress percentage or scientific geometry is inferred by the UI. Stored artifacts can be selected with keyboard-accessible tabs, and a visual replay action does not start execution. Reduced-motion preferences disable moving effects. Domain algorithms and image interpretation remain in their plugin.

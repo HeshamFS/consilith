@@ -81,6 +81,11 @@ export type FieldDef = {
   max?: number | null;
   choices?: string[];
   required?: boolean;
+  human_only?: boolean;
+  review_quantity?: string;
+  reviewQuantity?: string;
+  humanOnly?: boolean;
+  default?: unknown;
 };
 export type Capability = {
   pluginId?: string;

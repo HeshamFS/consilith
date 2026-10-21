@@ -34,6 +34,18 @@ def _room_agent(aid: str) -> dict[str, Any]:
     return {"id": aid, "kind": "room", "owner": None, "status": "idle", "statusDetail": ""}
 
 
+def case_defaults(case: CaseDef) -> dict[str, dict[str, Any]]:
+    """Give each room its own copy of the package-declared initial input values."""
+    return {
+        lane.id: {
+            field.name: copy.deepcopy(field.default)
+            for field in lane.fields
+            if field.default is not None
+        }
+        for lane in case.lanes
+    }
+
+
 @registry_operation
 def empty_document(room: str, title: str, studio: str = "") -> Doc:
     cases_installed = all_extensions("cases")
@@ -51,6 +63,7 @@ def empty_document(room: str, title: str, studio: str = "") -> Doc:
         cases[selected] = cases_installed[selected]
     roles = {role["id"] for p in plugins for role in p["roles"]}
     roles.update(lane.default_role for case in cases.values() for lane in case.lanes)
+    twins = {cid: case_defaults(case) for cid, case in cases.items()}
     return {
         "room": {
             "id": room,
@@ -66,8 +79,11 @@ def empty_document(room: str, title: str, studio: str = "") -> Doc:
         "packagePins": package_pins(ids),
         "roleDefaults": {role: default_config(role).wire() for role in roles},
         "lanes": {cid: {ln: None for ln in c.lane_ids()} for cid, c in cases.items()},
-        "twin": {cid: {ln: {} for ln in c.lane_ids()} for cid, c in cases.items()},
-        "revisions": {cid: {ln: digest({}) for ln in c.lane_ids()} for cid, c in cases.items()},
+        "twin": twins,
+        "revisions": {
+            cid: {lane: digest(value) for lane, value in twin.items()}
+            for cid, twin in twins.items()
+        },
         "results": {},
         "runs": {},
         "proposals": {},
@@ -109,12 +125,13 @@ def activation_patch(doc: Doc, plugin_id: str) -> Patch:
             if cid in doc.get("schemas", {}):
                 raise Conflict(f"capability {cid} already belongs to this room")
             case = cases_installed[cid]
+            twin = case_defaults(case)
             capabilities.append(describe_case(case))
             sections: dict[str, Any] = {
                 "schemas": case.wire(),
                 "lanes": {lane: None for lane in case.lane_ids()},
-                "twin": {lane: {} for lane in case.lane_ids()},
-                "revisions": {lane: digest({}) for lane in case.lane_ids()},
+                "twin": twin,
+                "revisions": {lane: digest(value) for lane, value in twin.items()},
             }
             for section, value in sections.items():
                 patch.append({"op": "add", "path": f"/{section}/{cid}", "value": value})

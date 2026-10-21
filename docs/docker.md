@@ -23,3 +23,11 @@ Generated `.docker/` contains secrets, catalogs, wheel caches and generated Comp
 The ChatGPT bridge stores encrypted credentials and the Linux keyring in a dedicated volume. Moving from an operating-system-specific host store can require fresh user authorization. Do not bake personal credentials into images. Read [bridge behavior and terms](siwc.md).
 
 This repository ships a local development deployment. Internet-facing deployment requires an operator's authentication, mail, TLS, secret-management and exposure configuration.
+# Internal source builds against existing Docker state
+
+An operator can set `CONSILITH_DEPLOYMENT_STATE_DIR` to an absolute directory containing
+the existing `.docker` deployment state. Build inputs still come from the selected source
+tree; catalog files, active service aliases, scoped environment files and bridge secret
+paths remain in the selected state directory. Keep the Compose project name unchanged
+when updating that deployment. This does not copy account credentials into the source
+tree, install a plugin automatically, or authorize a public release.

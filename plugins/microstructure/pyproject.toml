@@ -1,0 +1,25 @@
+[project]
+name = "consilith-microstructure"
+version = "0.5.2"
+description = "Independent 2D grain reconstruction and constrained grain-growth kernel"
+requires-python = ">=3.12,<3.13"
+authors = [{name = "Hesham Salama", email = "hesham.salama@rub.de"}]
+dependencies = ["numpy==2.4.2", "scipy==1.17.0", "scikit-image==0.26.0", "Pillow==12.1.1", "numba==0.65.1"]
+
+[project.optional-dependencies]
+server = ["mcp==2.3.0", "uvicorn==0.54.0"]
+platform = ["consilith-contracts", "mcp==2.3.0", "uvicorn==0.54.0"]
+test = ["pytest>=8,<10", "matplotlib>=3.10,<4"]
+
+[project.scripts]
+microstructure = "consilith_microstructure.cli:main"
+
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/consilith_microstructure"]
+
+[tool.uv]
+managed = false

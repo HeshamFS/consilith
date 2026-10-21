@@ -303,6 +303,45 @@
   margin: 0;
   overflow: auto;
 }
+.artifactBrowser {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.artifactPanel {
+  min-width: 0;
+}
+.artifactTabs {
+  display: flex;
+  overflow-x: auto;
+  gap: 6px;
+  padding: 3px 2px 9px;
+}
+.artifactTabs button {
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--ink-2);
+  min-height: 36px;
+  padding: 7px 12px;
+  font: 12px var(--font-ui);
+  cursor: pointer;
+}
+.artifactTabs button[aria-selected="true"] {
+  color: var(--on-accent);
+  border-color: var(--seat-blue);
+  background: var(--seat-blue);
+}
+.artifactTabs button:focus-visible {
+  outline: 2px solid var(--seat-blue);
+  outline-offset: 2px;
+}
+.artifactTabs span {
+  opacity: 0.7;
+  font-size: 10px;
+}
 .artifact img,
 .artifact svg {
   width: 100%;
@@ -426,6 +465,78 @@
 }
 .artifact pre {
   font: 10px / 1.5 var(--font-mono);
+}
+.sequence {
+  display: grid;
+  gap: 12px;
+  font: 12px / 1.5 var(--font-ui);
+}
+.sequence p {
+  margin: 0;
+}
+.sequenceFrame {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+}
+.sequenceControls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.sequenceControls button,
+.sequenceControls select {
+  color: var(--viewport-ink);
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font: inherit;
+}
+.sequenceControls option {
+  color: var(--ink);
+  background: var(--surface);
+}
+.sequenceControls button:disabled {
+  opacity: 0.5;
+}
+.sequencePosition {
+  display: grid;
+  gap: 8px;
+  font-family: var(--font-mono);
+}
+.sequencePosition input {
+  width: 100%;
+  accent-color: var(--seat-blue);
+}
+.sequenceNote {
+  opacity: 0.7;
+  font-size: 11px;
+}
+.reviewField {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.reviewField p,
+.reviewField small {
+  width: 100%;
+  margin: 0;
+}
+.jsonPreview {
+  max-height: 280px;
+  max-width: 100%;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 11px / 1.5 var(--font-mono);
+}
+.jsonDetails summary {
+  cursor: pointer;
+  padding-block: 8px;
+  font: 11px / 1.5 var(--font-mono);
 }
 .artifactEmpty {
   color: #bdbbb3;

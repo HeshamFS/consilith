@@ -1,6 +1,7 @@
 import { type ReactNode, useState } from "react";
 import { Icon, Stamp, type StampKind } from "@/shared/ui";
 import s from "./a2ui.module.css";
+import type { ImageActivity } from "./ImageStage";
 import { ResultValue, type TypedResult } from "./ResultValue";
 import { resolve } from "./surface";
 import {
@@ -30,11 +31,13 @@ export type A2UIAction =
   | { name: "edit"; path: string; value: unknown; present: boolean; reason: string };
 
 type Ctx = {
+  imageActivity: ImageActivity;
   surface: Surface;
   scope?: string;
   onAction?: (a: A2UIAction) => Promise<void>;
   views?: Partial<Record<string, (data: unknown, c: Component) => ReactNode>>;
   loadArtifact?: WorkspaceActions["loadArtifact"];
+  uploadArtifact?: WorkspaceActions["uploadArtifact"];
 };
 
 const PANEL_SET = new Set<string>(PANELS);
@@ -46,17 +49,21 @@ export function A2UISurface({
   onAction,
   views,
   loadArtifact,
+  uploadArtifact,
 }: {
   surface: Surface;
   scope?: string;
   onAction?: Ctx["onAction"];
   views?: Ctx["views"];
   loadArtifact?: WorkspaceActions["loadArtifact"];
+  uploadArtifact?: WorkspaceActions["uploadArtifact"];
 }) {
   const ctx: Ctx = {
     surface,
+    imageActivity: surfaceImageActivity(surface),
     ...(scope ? { scope } : {}),
     loadArtifact,
+    uploadArtifact,
     ...(onAction ? { onAction } : {}),
     ...(views ? { views } : {}),
   };
@@ -65,6 +72,20 @@ export function A2UISurface({
       <Node id="root" ctx={ctx} depth={0} />
     </div>
   );
+}
+
+/** Use the surface's own execution binding, independent of its plugin or layout. */
+function surfaceImageActivity(surface: Surface): ImageActivity {
+  const status = Object.values(surface.components).find(
+    (component) => component.component === "JobStatus",
+  );
+  if (!status || !("data" in status)) return "idle";
+  const value = resolve(surface.data, status.data.path);
+  if (!value || typeof value !== "object" || !("state" in value)) return "idle";
+  const state = value.state;
+  return state === "running" || state === "queued" || state === "done" || state === "failed"
+    ? state
+    : "idle";
 }
 
 function text(v: TextValue | undefined, data: unknown): string {
@@ -219,9 +240,11 @@ function Node({ id, ctx, depth }: { id: string; ctx: Ctx; depth: number }) {
         <WorkspaceView
           kind={c.component}
           value={value}
+          imageActivity={ctx.imageActivity}
           scope={ctx.scope ?? ctx.surface.id}
           onAction={ctx.onAction}
           loadArtifact={ctx.loadArtifact}
+          uploadArtifact={ctx.uploadArtifact}
         />
       );
     if (c.component === "ResultTable" || c.component === "MetricGrid") {

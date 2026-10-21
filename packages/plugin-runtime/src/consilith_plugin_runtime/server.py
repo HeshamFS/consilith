@@ -15,14 +15,16 @@ from typing import cast
 
 from .client import safe_environment, stop_process
 from .codec import read_message, write_message
+from .limits import plugin_timeout_s
 
 
 class Handler(socketserver.StreamRequestHandler):
     def handle(self):
-        self.connection.settimeout(float(os.environ.get("CONSILITH_PLUGIN_TIMEOUT", "300")))
         process = None
         timer = None
         try:
+            timeout_s = plugin_timeout_s()
+            self.connection.settimeout(timeout_s)
             request = read_message(self.rfile)
             secret = os.environ.get("CONSILITH_PLUGIN_TOKEN", "")
             if not secret or not hmac.compare_digest(str(request.pop("token", "")), secret):
@@ -49,7 +51,7 @@ class Handler(socketserver.StreamRequestHandler):
                 start_new_session=os.name != "nt",
             )
             timer = threading.Timer(
-                float(os.environ.get("CONSILITH_PLUGIN_TIMEOUT", "300")),
+                timeout_s,
                 stop_process,
                 args=(process,),
             )

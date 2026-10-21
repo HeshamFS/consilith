@@ -14,7 +14,9 @@ from typing import Any
 
 from pydantic import BaseModel
 
-MAX_LINE = 64 * 1024 * 1024
+# A bounded 64 MiB artifact envelope expands to about 86 MiB when base64 encoded.
+# Leave room for typed output metadata while retaining a hard transport ceiling.
+MAX_LINE = 128 * 1024 * 1024
 METHODS = frozenset(
     {
         "snapshot",

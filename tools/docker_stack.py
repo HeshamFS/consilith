@@ -18,6 +18,8 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
+from deployment import state_dir
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -32,7 +34,7 @@ def docker_binary() -> str:
 
 
 def prepare() -> None:
-    private = ROOT / ".docker"
+    private = state_dir()
     private.mkdir(mode=0o700, exist_ok=True)
     path = private / "stack.env"
     if not path.exists():
@@ -181,7 +183,7 @@ def _main() -> int:
         smoke()
     else:
         if args.action == "config":
-            (ROOT / ".docker/catalog").mkdir(exist_ok=True)
+            (state_dir() / "catalog").mkdir(exist_ok=True)
         command = ["config", "--quiet"] if args.action == "config" else [args.action]
         subprocess.run([*compose, *command], cwd=ROOT, check=True)
     return 0

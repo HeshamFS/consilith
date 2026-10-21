@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from consilith_contracts import AgentConfig, Autonomy, CaseDef, PatchOp
+from consilith_contracts import CASES, AgentConfig, Autonomy, CaseDef, PatchOp
 
 from .actors import Actor
 from .errors import Denied
@@ -54,6 +54,14 @@ def authorize_twin_patch(
         if op.from_ is not None:
             raise Denied("'from' is not allowed on the twin")
         lp = twin_lane(op.path, cases)
+        if actor.kind == "personal_agent" and op.op != "test":
+            descriptor = (CASES if cases is None else cases)[lp.case].lane(lp.lane)
+            if descriptor is not None and any(
+                field.human_only and field.name == lp.rest[0] for field in descriptor.fields
+            ):
+                raise Denied(
+                    "human-only fields require an explicit owner edit or accepted proposal"
+                )
         if lp not in lanes:
             lanes.append(lp)
 

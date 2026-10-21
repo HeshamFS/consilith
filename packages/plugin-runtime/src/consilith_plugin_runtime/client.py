@@ -26,6 +26,7 @@ from .codec import (
     read_message,
     write_message,
 )
+from .limits import plugin_timeout_s
 
 
 def async_callable(function: Any) -> bool:
@@ -275,7 +276,8 @@ def exchange(
             return message["value"]
 
 
-def load(reference: str, timeout_s: float = 300.0) -> tuple[dict, dict]:
+def load(reference: str, timeout_s: float | None = None) -> tuple[dict, dict]:
+    timeout_s = plugin_timeout_s() if timeout_s is None else timeout_s
     description = exchange(reference, {"op": "describe"}, timeout_s)
     metadata = description["metadata"]
 

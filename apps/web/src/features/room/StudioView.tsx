@@ -173,6 +173,7 @@ export function StudioView({
           scope={`${doc.room.id}:${sid}`}
           onAction={viewer === me && !composing && meta?.assembly === "ready" ? act : undefined}
           loadArtifact={loadArtifact}
+          uploadArtifact={(file, mediaType) => conn.upload(file, mediaType)}
         />
       ) : (
         <div role="status">

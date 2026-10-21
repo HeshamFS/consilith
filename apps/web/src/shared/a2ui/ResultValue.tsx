@@ -1,5 +1,6 @@
 import { Stamp, type StampKind } from "@/shared/ui";
 import s from "./a2ui.module.css";
+import { JsonPreview } from "./JsonPreview";
 
 export type ResultKind = "number" | "text" | "category" | "json" | "artifact";
 export type TypedResult = {
@@ -23,9 +24,7 @@ export function ResultValue({
       {result.kind === "artifact" ? (
         <span>Artifact output · {result.artifacts?.length ?? 0} files</span>
       ) : result.kind === "json" ? (
-        <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
-          {JSON.stringify(result.value, null, 2)}
-        </pre>
+        <JsonPreview value={result.value} />
       ) : (
         <span style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
           {String(result.value ?? "")}

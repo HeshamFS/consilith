@@ -87,11 +87,11 @@ def switch_catalog(
     candidate: dict, aliases: dict, validate, activate, images: dict | None = None
 ) -> None:
     """Rollback both durable discovery files and running registry on activation failure."""
-    catalog_path = deployment.ROOT / ".docker/catalog/plugins.json"
-    state_path = deployment.ROOT / ".docker/active-services.json"
+    catalog_path = deployment.state_dir() / "catalog/plugins.json"
+    state_path = deployment.state_dir() / "active-services.json"
     old_catalog = catalog_path.read_bytes()
     old_state = state_path.read_bytes() if state_path.exists() else b"{}\n"
-    images_path = deployment.ROOT / ".docker/active-images.json"
+    images_path = deployment.state_dir() / "active-images.json"
     old_images = images_path.read_bytes() if images_path.exists() else b"{}\n"
     validate(candidate)
     try:
@@ -136,7 +136,7 @@ def update(document: dict, plugin: str | None, docker: str, health) -> None:
     )
     # Preserve every unrelated installed endpoint even if this update manifest only
     # describes the selected release. Removal is a separate explicit full deployment.
-    live = json.loads((deployment.ROOT / ".docker/catalog/plugins.json").read_text())
+    live = json.loads((deployment.state_dir() / "catalog/plugins.json").read_text())
     previous_refs = {f"tcp://{old_aliases.get(name, name)}:8840" for name in workers}
     staged_refs = {f"tcp://{aliases[name]}:8840" for name in workers}
     catalog["plugins"] = [p for p in live["plugins"] if p["reference"] not in previous_refs] + [
@@ -286,7 +286,7 @@ def update(document: dict, plugin: str | None, docker: str, health) -> None:
                     [docker, "network", "rm", project + "_capability-" + service],
                     capture_output=True,
                 )
-                (deployment.ROOT / ".docker" / (service + ".env")).unlink(missing_ok=True)
+                (deployment.state_dir() / (service + ".env")).unlink(missing_ok=True)
             for name in selected:
                 if entries[name].get("build"):
                     subprocess.run([docker, "image", "rm", images[name]], capture_output=True)

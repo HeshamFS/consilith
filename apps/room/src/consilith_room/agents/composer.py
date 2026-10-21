@@ -426,11 +426,31 @@ class Composer:
             },
             "inputs": {},
         }
+        current = room.current_results(case)
+        capability = next(
+            (item for item in (room.read("room", "capabilities") or []) if item.get("id") == case),
+            {},
+        )
+        intake_bindings = capability.get("intakeBindings", [])
+        if isinstance(intake_bindings, dict):
+            intake_bindings = [
+                {**binding, "kind": kind}
+                for kind, binding in intake_bindings.items()
+                if isinstance(binding, dict)
+            ]
+        reviewed: dict[str, ResultRecord] = {}
         for lane in definition.lanes:
             owner = room.read("lanes", case, lane.id)
             fields = []
             for field in lane.fields:
                 raw = room.read("twin", case, lane.id, field.name)
+                review_candidate = current.get(field.review_quantity or "")
+                if field.review_quantity and isinstance(raw, str) and raw:
+                    node = room.read("results", raw)
+                    if node is not None:
+                        record = ResultRecord.model_validate(node)
+                        if record.case == case and record.quantity == field.review_quantity:
+                            reviewed[record.id] = record
                 fields.append(
                     {
                         "definition": {
@@ -440,6 +460,21 @@ class Composer:
                         "value": raw,
                         "path": f"/twin/{case}/{lane.id}/{field.name}",
                         "present": raw is not None,
+                        "reviewCandidate": {
+                            "id": review_candidate.id,
+                            "status": review_candidate.status.value,
+                        }
+                        if review_candidate is not None and field.review_quantity
+                        else None,
+                        "intakeBinding": next(
+                            (
+                                binding
+                                for binding in intake_bindings
+                                if binding.get("lane") == lane.id
+                                and binding.get("field") == field.name
+                            ),
+                            None,
+                        ),
                         "provenanceId": f"twin:/twin/{case}/{lane.id}/{field.name}"
                         if raw is not None
                         else f"schema:{case}",
@@ -454,7 +489,6 @@ class Composer:
                 "fields": fields,
                 "provenanceId": f"schema:{case}",
             }
-        current = room.current_results(case)
         data["results"] = {
             "title": "Results",
             "items": [
@@ -468,22 +502,34 @@ class Composer:
             if r.get("case") == case
         ]
         last = runs[-1] if runs else {}
-        running = any(r.get("status") in ("running", "queued") for r in runs)
+        jobs = [job for job in (room.read("queue") or {}).values() if job.get("case") == case]
+        active_jobs = [job for job in jobs if job.get("status") in ("running", "queued")]
+        running = any(r.get("status") in ("running", "queued") for r in runs) or bool(active_jobs)
+        latest_job = max(jobs, key=lambda job: job.get("updatedSeq", 0), default={})
+        if latest_job and latest_job.get("updatedSeq", 0) >= last.get("openedSeq", 0):
+            last = latest_job
+        job_state = (
+            "running" if any(job.get("status") == "running" for job in active_jobs) else "queued"
+        )
+        execution_state = (
+            job_state
+            if active_jobs
+            else ("running" if running else str(last.get("status", "idle")))
+        )
+        last_error = last.get("error") or (last.get("result") or {}).get("error")
         ready = all(room.read("lanes", case, lane.id) for lane in definition.lanes)
         data["execution"] = {
             "title": definition.label,
             "case": case,
             "action": "run",
-            "state": self.execution.get(
-                (room.id, case), "running" if running else str(last.get("status", "idle"))
-            ),
+            "state": self.execution.get((room.id, case), execution_state),
             "enabled": bool(
                 ready
                 and not running
                 and self.assembly.get(key, "unprepared") == "ready"
                 and (room.id, case) not in self.execution
             ),
-            "error": last.get("error"),
+            "error": None if running else last_error,
             "description": definition.grammar,
         }
         old = [
@@ -535,7 +581,21 @@ class Composer:
                         }
                     )
         seen_artifacts: set[str] = set()
-        for name, rec in current.items():
+        reviewed_runs = {rec.run_id for rec in reviewed.values()}
+        # A review output can bind a run whose previews are sibling typed outputs.
+        # Keep that run's artifacts visible as historical review material, without
+        # promoting any sibling back to current evidence.
+        for node in cast(dict[str, Any], room.read("results") or {}).values():
+            record = ResultRecord.model_validate(node)
+            if record.case == case and record.run_id in reviewed_runs:
+                reviewed[record.id] = record
+        artifact_records = [(name, rec, "computed") for name, rec in current.items()]
+        artifact_records += [
+            (rec.quantity, rec, "reviewed snapshot")
+            for rec in reviewed.values()
+            if rec.id not in {r.id for r in current.values()}
+        ]
+        for name, rec, source in artifact_records:
             for artifact in rec.artifacts:
                 if artifact.sha256 in seen_artifacts:
                     continue
@@ -545,7 +605,8 @@ class Composer:
                         "label": name,
                         "sha256": artifact.sha256,
                         "kind": artifact.kind,
-                        "source": "computed",
+                        "role": artifact.role,
+                        "source": source,
                         "illustrative": rec.illustrative,
                         "provenanceId": rec.id,
                     }

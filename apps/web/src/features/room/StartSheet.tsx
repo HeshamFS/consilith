@@ -1,4 +1,6 @@
-import { type PointerEvent, useRef, useState } from "react";
+import { type PointerEvent, useEffect, useRef, useState } from "react";
+import { intakeMediaType } from "@/shared/a2ui/artifactIntake";
+import { ImageStage } from "@/shared/a2ui/ImageStage";
 import { intakeId } from "@/shared/domain/disciplines";
 import { Button, Icon } from "@/shared/ui";
 import { Sheet } from "./Sheet";
@@ -37,6 +39,16 @@ export function StartSheet({
   const chosen = choices.find((c) => c.id === kind);
   const [words, setWords] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  useEffect(() => {
+    if (!file || !["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      setPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
   const [metadata, setMetadata] = useState<Record<string, string>>({});
   const [strokes, setStrokes] = useState<number[][][]>([]);
   const drawing = useRef<number[][] | null>(null);
@@ -74,7 +86,7 @@ export function StartSheet({
       } else if (binding.valueKind === "artifact") {
         if (!file) throw new Error("Choose an input file");
         // The server owns format acceptance; packages declare their semantic file type.
-        const declared = binding.mediaType || "application/octet-stream";
+        const declared = intakeMediaType(binding.mediaType, file.type);
         const extra: Record<string, unknown> = {};
         for (const f of binding.metadataFields ?? []) {
           const raw = metadata[f.name] ?? "";
@@ -137,6 +149,8 @@ export function StartSheet({
               setKind(c.id);
               setError(null);
               setRouted(null);
+              setFile(null);
+              setMetadata({});
             }}
           >
             {c.label}
@@ -191,10 +205,24 @@ export function StartSheet({
               {chosen.binding.label ?? "Choose input"}
               <input
                 type="file"
+                key={kind}
                 accept={chosen.binding.mediaType}
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               />
             </label>
+            {preview ? (
+              <ImageStage
+                key={preview}
+                src={preview}
+                alt="Selected input preview"
+                activity={busy ? "uploading" : error ? "failed" : "idle"}
+              />
+            ) : null}
+            {file ? (
+              <p className={s.small}>
+                {file.name} · {Math.ceil(file.size / 1024)} KiB · original file preserved
+              </p>
+            ) : null}
             {(chosen.binding.metadataFields ?? []).map((f) => (
               <label key={f.name}>
                 {f.label}

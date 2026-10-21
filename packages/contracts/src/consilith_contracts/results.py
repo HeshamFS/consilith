@@ -119,7 +119,7 @@ class ArtifactContent(Contract):
 
 class OutputBase(Contract):
     name: str = Field(min_length=1)
-    artifacts: list[ArtifactContent] = Field(default_factory=list[ArtifactContent], max_length=16)
+    artifacts: list[ArtifactContent] = Field(default_factory=list[ArtifactContent], max_length=128)
 
 
 class NumberOutput(OutputBase):
@@ -160,7 +160,7 @@ class JsonOutput(OutputBase):
 
 class ArtifactOutput(OutputBase):
     kind: Literal["artifact"] = "artifact"
-    artifacts: list[ArtifactContent] = Field(min_length=1, max_length=16)
+    artifacts: list[ArtifactContent] = Field(min_length=1, max_length=128)
 
 
 TypedOutput = Annotated[
@@ -240,9 +240,9 @@ class ResultEnvelope(Contract):
                 digest(output.value)
         if (
             sum(len(a.bytes()) for output in self.outputs for a in output.artifacts)
-            > 16 * 1024 * 1024
+            > 64 * 1024 * 1024
         ):
-            raise ValueError("combined inline artifacts exceed 16 MiB")
+            raise ValueError("combined inline artifacts exceed 64 MiB")
         return self
 
 
