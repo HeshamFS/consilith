@@ -1,0 +1,14 @@
+[project]
+name = "consilith-agentic-starter"
+version = "1.1.2"
+description = "Independent starter plugin for the Consilith agentic platform"
+requires-python = ">=3.12,<3.13"
+dependencies = ["consilith-contracts", "mcp==2.3.0", "uvicorn==0.54.0"]
+
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/consilith_agentic_starter"]
+

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "project": "consilith",
+  "platform": {
+    "image": "consilith-platform:local",
+    "build": {
+      "packages": [
+        "packages/contracts",
+        "packages/plugin-runtime",
+        "apps/room",
+        "apps/referee"
+      ],
+      "requirements": [
+        "consilith-room",
+        "consilith-referee"
+      ]
+    }
+  },
+  "plugins": [],
+  "mcpServices": []
+}
