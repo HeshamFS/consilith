@@ -1,0 +1,256 @@
+{
+  "name": "consilith",
+  "services": {
+    "room": {
+      "restart": "unless-stopped",
+      "cap_drop": [
+        "ALL"
+      ],
+      "cpus": 2,
+      "command": [
+        "python",
+        "/app/container.py",
+        "room"
+      ],
+      "entrypoint": null,
+      "environment": {
+        "CONSILITH_DATA_DIR": "/data",
+        "CONSILITH_DEV_MAILBOX": "true",
+        "CONSILITH_ENV": "development",
+        "CONSILITH_HOST": "0.0.0.0",
+        "CONSILITH_PORT": "8080",
+        "CONSILITH_PUBLIC_URL": "http://127.0.0.1:8800/api",
+        "CONSILITH_REFEREE_PUBLIC_KEY_PATH": "/public-keys/referee.pem",
+        "CONSILITH_REFEREE_URL": "http://referee:8080",
+        "CONSILITH_WEB_ORIGIN": "http://127.0.0.1:8800",
+        "CONSILITH_EXTENSION_MODULES": "[]",
+        "CONSILITH_PLUGIN_CATALOG": "/catalog/plugins.json"
+      },
+      "env_file": [
+        ".docker/room.env"
+      ],
+      "image": "consilith-platform:local",
+      "init": true,
+      "mem_limit": "1073741824",
+      "read_only": true,
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp:rw,noexec,nosuid,size=256m"
+      ],
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "room-data",
+          "target": "/data",
+          "volume": {}
+        },
+        {
+          "type": "volume",
+          "source": "referee-public",
+          "target": "/public-keys",
+          "read_only": true,
+          "volume": {}
+        },
+        {
+          "type": "volume",
+          "source": "gateway-capability",
+          "target": "/gateway-capability",
+          "volume": {}
+        },
+        "CATALOG"
+      ],
+      "build": {
+        "context": ".docker/build/room"
+      },
+      "depends_on": {
+        "referee": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "siwc": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "networks": [
+        "default",
+        "provider"
+      ]
+    },
+    "referee": {
+      "restart": "unless-stopped",
+      "cap_drop": [
+        "ALL"
+      ],
+      "cpus": 2,
+      "command": [
+        "python",
+        "/app/container.py",
+        "referee"
+      ],
+      "entrypoint": null,
+      "environment": {
+        "CONSILITH_EXTENSION_MODULES": "[]",
+        "CONSILITH_PLUGIN_CATALOG": "/catalog/plugins.json"
+      },
+      "env_file": [
+        ".docker/referee.env"
+      ],
+      "image": "consilith-platform:local",
+      "init": true,
+      "mem_limit": "1073741824",
+      "read_only": true,
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp:rw,noexec,nosuid,size=256m"
+      ],
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "referee-data",
+          "target": "/data",
+          "volume": {}
+        },
+        {
+          "type": "volume",
+          "source": "referee-public",
+          "target": "/public-keys",
+          "volume": {}
+        },
+        "CATALOG"
+      ],
+      "build": {
+        "context": ".docker/build/room"
+      }
+    },
+    "web": {
+      "restart": "unless-stopped",
+      "cap_drop": [
+        "ALL"
+      ],
+      "cpus": 2,
+      "command": null,
+      "entrypoint": null,
+      "environment": {
+        "CONSILITH_ROOM_URL": "http://room:8080"
+      },
+      "image": "consilith-web:local",
+      "init": true,
+      "mem_limit": "268435456",
+      "read_only": true,
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp:rw,noexec,nosuid,size=256m"
+      ],
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "gateway-capability",
+          "target": "/gateway-capability",
+          "read_only": true,
+          "volume": {}
+        }
+      ],
+      "build": {
+        "context": ".",
+        "dockerfile": "docker/web.Dockerfile"
+      },
+      "depends_on": {
+        "room": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "ports": [
+        "127.0.0.1:${CONSILITH_HTTP_PORT:-8800}:8080"
+      ],
+      "env_file": []
+    },
+    "siwc": {
+      "image": "consilith-chatgpt-bridge:local",
+      "build": {
+        "context": ".",
+        "dockerfile": "docker/siwc.Dockerfile",
+        "additional_contexts": {
+          "siwc_sdk": "https://github.com/openai/sign-in-with-chatgpt-devkit.git#0a36fefeb913055c8c7a1a29b63d82b96b2e841a"
+        }
+      },
+      "restart": "unless-stopped",
+      "init": true,
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "cap_add": [
+        "CHOWN",
+        "DAC_OVERRIDE",
+        "SETUID",
+        "SETGID"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "mem_limit": "536870912",
+      "cpus": 1,
+      "tmpfs": [
+        "/tmp:rw,noexec,nosuid,size=128m",
+        "/run/consilith-secrets:rw,noexec,nosuid,mode=0700,size=64k"
+      ],
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "siwc-data",
+          "target": "/data"
+        }
+      ],
+      "secrets": [
+        "siwc-shared-secret",
+        "siwc-keyring-password"
+      ],
+      "ports": [
+        "127.0.0.1:8787:8788"
+      ],
+      "networks": [
+        "provider"
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "gosu",
+          "node",
+          "node",
+          "-e",
+          "const fs=require('node:fs');fetch('http://127.0.0.1:8730/status',{headers:{'x-consilith-siwc':fs.readFileSync('/run/consilith-secrets/shared-secret','utf8').trim()}}).then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+        ],
+        "interval": "10s",
+        "timeout": "5s",
+        "start_period": "20s",
+        "retries": 12
+      }
+    }
+  },
+  "volumes": {
+    "gateway-capability": {},
+    "referee-data": {},
+    "referee-public": {},
+    "room-data": {},
+    "siwc-data": {}
+  },
+  "networks": {
+    "provider": {}
+  },
+  "secrets": {
+    "siwc-shared-secret": {
+      "file": ".docker/siwc-shared-secret"
+    },
+    "siwc-keyring-password": {
+      "file": ".docker/siwc-keyring-password"
+    }
+  }
+}
