@@ -1,0 +1,36 @@
+[project]
+name = "consilith"
+version = "0.1.0"
+description = "Generic multiplayer agentic platform and independent plugin contracts"
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["packages/contracts", "packages/plugin-runtime", "apps/room", "apps/referee"]
+
+[tool.uv.sources]
+consilith-contracts = { workspace = true }
+consilith-plugin-runtime = { workspace = true }
+consilith-room = { workspace = true }
+consilith-referee = { workspace = true }
+
+[dependency-groups]
+platform = ["ruff==0.17.1", "pyright==1.1.414", "import-linter==2.15", "httpx==0.28.1", "consilith-contracts", "consilith-plugin-runtime", "consilith-room", "consilith-referee"]
+dev = [{ include-group = "platform" }]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003"]
+[tool.pyright]
+pythonVersion = "3.12"
+include = ["packages/plugin-runtime/src", "packages/contracts/src", "apps/room/src", "apps/referee/src", "examples/agentic-plugin-template/src"]
+exclude = ["**/.venv/**"]
+typeCheckingMode = "standard"
+strict = ["packages/contracts/src", "apps/room/src/consilith_room/domain", "apps/room/src/consilith_room/platform"]
+reportMissingTypeStubs = false
