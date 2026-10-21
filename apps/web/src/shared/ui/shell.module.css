@@ -1,0 +1,256 @@
+.caps {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  text-transform: uppercase;
+}
+
+/* Onboarding */
+.onboard {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* The card sits in the middle of the window, the same distance from top and bottom; the
+   * header floats above it. */
+  justify-content: center;
+  padding: 68px 16px;
+  overflow-x: clip;
+  background:
+    linear-gradient(var(--line), var(--line)) calc(50% - 440px) 0 / 1px 100% no-repeat,
+    linear-gradient(var(--line), var(--line)) calc(50% + 439px) 0 / 1px 100% no-repeat;
+}
+
+.onboardTop {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 32px);
+  max-width: 1200px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.inviteTop {
+  width: 100%;
+  max-width: 960px;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.topRight {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.card {
+  width: 880px;
+  max-width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  padding: 28px 48px 24px;
+  /* Both onboarding steps share one card height. */
+  min-height: min(713px, calc(100dvh - 136px));
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  position: relative;
+}
+
+/* Drafting lines a few pixels above and below the card, as on sign-in. */
+.card::before,
+.card::after {
+  content: "";
+  position: absolute;
+  left: -100vw;
+  right: -100vw;
+  height: 1px;
+  background: var(--line);
+  pointer-events: none;
+}
+
+.card::before {
+  top: -13px;
+}
+
+.card::after {
+  bottom: -13px;
+}
+
+.cardWide {
+  width: 960px;
+}
+
+.stepRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.steps {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.stepOn,
+.stepOff {
+  width: 28px;
+  height: 4px;
+  border-radius: 999px;
+}
+
+.stepOn {
+  background: var(--ink);
+}
+
+.stepOff {
+  background: var(--surface-3);
+}
+
+/* Workspace */
+.workspace {
+  min-height: 100dvh;
+  background:
+    linear-gradient(var(--line), var(--line)) 0 76px / 100% 1px no-repeat,
+    linear-gradient(var(--line), var(--line)) calc(50% - 600px) 0 / 1px 100% no-repeat,
+    linear-gradient(var(--line), var(--line)) calc(50% + 599px) 0 / 1px 100% no-repeat;
+}
+
+.bar {
+  max-width: 1200px;
+  margin: 0 auto;
+  height: 76px;
+  padding: 0 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.barLeft,
+.barRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.homeLink {
+  color: inherit;
+  text-decoration: none;
+}
+
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.crumbs a {
+  color: var(--ink-2);
+  text-decoration: none;
+}
+
+.me {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px 5px 5px;
+  min-height: 44px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.meName {
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.workspaceBody {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 28px 28px 24px;
+}
+
+@media (max-width: 900px) {
+  .onboard,
+  .workspace {
+    background: none;
+  }
+  .card {
+    padding: 28px 24px;
+  }
+}
+
+@media (max-width: 560px) {
+  .onboard {
+    padding: 0 0 32px;
+  }
+  .onboardTop {
+    height: 72px;
+    padding: 0 16px;
+    justify-content: flex-start;
+  }
+  .topRight {
+    right: 16px;
+  }
+  .inviteTop {
+    height: 64px;
+    padding: 0 16px;
+  }
+  .card {
+    border-left: none;
+    border-right: none;
+    box-shadow: none;
+    padding: 24px 16px;
+  }
+  .bar {
+    padding: 0 16px;
+    height: 64px;
+  }
+  .crumbs {
+    display: none;
+  }
+  .meName {
+    display: none;
+  }
+  .me {
+    padding: 5px;
+  }
+  .workspaceBody {
+    padding: 24px 16px 48px;
+  }
+}
+
+/* Short windows: the onboarding card keeps its layout, with less air around and inside it. */
+@media (max-height: 800px) and (min-width: 561px) {
+  .onboard {
+    padding-top: 56px;
+    padding-bottom: 56px;
+  }
+  .onboardTop {
+    height: 48px;
+  }
+  .card {
+    padding: 22px 48px 18px;
+    gap: 14px;
+  }
+}

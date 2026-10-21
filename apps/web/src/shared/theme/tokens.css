@@ -1,0 +1,155 @@
+/* Consilith tokens. One complete set per mode; components use only these variables.
+   The mode follows the system until the person picks one (html[data-theme]). */
+
+:root {
+  --font-ui: "Instrument Sans Variable", "Instrument Sans", system-ui, sans-serif;
+  --font-display: "Instrument Serif", Georgia, serif;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+  --font-math: "STIX Two Text", "Cambria Math", serif;
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 20px;
+  --r-pill: 999px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --tap: 44px;
+  --dot-size: 24px;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Light: Paper. */
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #fbfaf7;
+  --bg-dot: #d9d4c9;
+  --surface: #ffffff;
+  --surface-2: #f4f2ec;
+  --surface-3: #ece9e1;
+  --line: #e2ded5;
+  --line-strong: #cfcac0;
+  --ink: #1c1b18;
+  --ink-2: #5b5850;
+  --ink-3: #6b675e;
+  --ink-inverse: #fbfaf7;
+  --on-accent: #ffffff;
+  --shadow: 0 1px 2px rgb(28 27 24 / 6%), 0 12px 32px rgb(28 27 24 / 8%);
+  --shadow-strong: 0 2px 4px rgb(28 27 24 / 8%), 0 24px 56px rgb(28 27 24 / 14%);
+  --scrim: rgb(28 27 24 / 32%);
+
+  --seat-blue: #2a50cc;
+  --seat-magenta: #c4296a;
+  --seat-teal: #0d8089;
+  --seat-violet: #5b2ea6;
+  --seat-amber: #b4530f;
+  --seat-olive: #4b5a2a;
+
+  --ok-bg: #dcf2e3;
+  --ok-fg: #14603a;
+  --warn-bg: #fbefd5;
+  --warn-fg: #7a4f00;
+  --bad-bg: #f8e1e1;
+  --bad-fg: #a1262f;
+  --wait-bg: #ece9e1;
+  --wait-fg: #5b5850;
+  --live: #1f9d5b;
+
+  --p-agui: #35506e;
+  --p-a2ui: #5a4870;
+  --p-a2a: #4b5a2a;
+  --p-mcp: #74482f;
+}
+
+/* Dark: Stage. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #1c1b18;
+  --bg-dot: #34342f;
+  --surface: #2a2a26;
+  --surface-2: #34342f;
+  --surface-3: #3b3b36;
+  --line: #3b3b36;
+  --line-strong: #4a4943;
+  --ink: #f0ede6;
+  --ink-2: #b5b1a7;
+  --ink-3: #a29d91;
+  --ink-inverse: #1c1b18;
+  --on-accent: #1c1b18;
+  --shadow: 0 1px 2px rgb(0 0 0 / 30%), 0 12px 32px rgb(0 0 0 / 35%);
+  --shadow-strong: 0 2px 4px rgb(0 0 0 / 35%), 0 24px 56px rgb(0 0 0 / 50%);
+  --scrim: rgb(20 19 17 / 60%);
+
+  --seat-blue: #7c9bff;
+  --seat-magenta: #ff7fb5;
+  --seat-teal: #5fd3d9;
+  --seat-violet: #b79cff;
+  --seat-amber: #f5a15c;
+  --seat-olive: #a8c46a;
+
+  --ok-bg: #1e3a2a;
+  --ok-fg: #9be3b9;
+  --warn-bg: #3a2e14;
+  --warn-fg: #f2c66b;
+  --bad-bg: #3d1f22;
+  --bad-fg: #ff9aa2;
+  --wait-bg: #34342f;
+  --wait-fg: #b5b1a7;
+  --live: #3dbf78;
+
+  --p-agui: #8fb0d6;
+  --p-a2ui: #b9a3d9;
+  --p-a2a: #b7c98a;
+  --p-mcp: #d9a27e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #1c1b18;
+    --bg-dot: #34342f;
+    --surface: #2a2a26;
+    --surface-2: #34342f;
+    --surface-3: #3b3b36;
+    --line: #3b3b36;
+    --line-strong: #4a4943;
+    --ink: #f0ede6;
+    --ink-2: #b5b1a7;
+    --ink-3: #a29d91;
+    --ink-inverse: #1c1b18;
+    --on-accent: #1c1b18;
+    --shadow: 0 1px 2px rgb(0 0 0 / 30%), 0 12px 32px rgb(0 0 0 / 35%);
+    --shadow-strong: 0 2px 4px rgb(0 0 0 / 35%), 0 24px 56px rgb(0 0 0 / 50%);
+    --scrim: rgb(20 19 17 / 60%);
+    --seat-blue: #7c9bff;
+    --seat-magenta: #ff7fb5;
+    --seat-teal: #5fd3d9;
+    --seat-violet: #b79cff;
+    --seat-amber: #f5a15c;
+    --seat-olive: #a8c46a;
+    --ok-bg: #1e3a2a;
+    --ok-fg: #9be3b9;
+    --warn-bg: #3a2e14;
+    --warn-fg: #f2c66b;
+    --bad-bg: #3d1f22;
+    --bad-fg: #ff9aa2;
+    --wait-bg: #34342f;
+    --wait-fg: #b5b1a7;
+    --live: #3dbf78;
+    --p-agui: #8fb0d6;
+    --p-a2ui: #b9a3d9;
+    --p-a2a: #b7c98a;
+    --p-mcp: #d9a27e;
+  }
+}
+
+:root {
+  --viewport-bg: #242522;
+  --viewport-ink: #f0eee6;
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+}

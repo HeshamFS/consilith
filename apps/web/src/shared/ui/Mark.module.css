@@ -1,0 +1,107 @@
+.lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+}
+
+.word {
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.loading .petal {
+  animation: petal 1.6s var(--ease) infinite both;
+  transform-box: view-box;
+}
+
+.loading .core {
+  animation: core 1.6s var(--ease) infinite both;
+  animation-delay: 1.12s;
+}
+
+@keyframes petal {
+  0% {
+    opacity: 0;
+  }
+  25%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes core {
+  0% {
+    opacity: 0;
+  }
+  15%,
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Intro: each petal flies in along its own axis and settles; the core is stamped last. */
+.intro .petal {
+  transform-box: view-box;
+  animation: converge 1.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.intro .core {
+  transform-box: view-box;
+  transform-origin: 50px 50px;
+  animation: stamp 0.6s cubic-bezier(0.3, 1.6, 0.5, 1) 2s both;
+}
+
+@keyframes converge {
+  from {
+    opacity: 0;
+    transform: translateY(-34px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Reduced motion: the same sequence, as fades only (no movement, no scaling). */
+@media (prefers-reduced-motion: reduce) {
+  .intro .petal,
+  .intro .core {
+    /* biome-ignore lint/complexity/noImportantStyles: overrides the global reduced-motion cut */
+    animation-name: fade !important;
+  }
+  .intro .petal {
+    /* biome-ignore lint/complexity/noImportantStyles: overrides the global reduced-motion cut */
+    animation-duration: 1.3s !important;
+  }
+  .intro .core {
+    /* biome-ignore lint/complexity/noImportantStyles: overrides the global reduced-motion cut */
+    animation-duration: 0.6s !important;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes stamp {
+  from {
+    opacity: 0;
+    transform: scale(2.2);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
