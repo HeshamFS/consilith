@@ -1,0 +1,31 @@
+[project]
+name = "consilith-room"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "consilith-contracts",
+  "consilith-plugin-runtime",
+  "fastapi==0.142.2",
+  "uvicorn==0.54.0",
+  "pydantic-settings==2.15.0",
+  "ag-ui-protocol==1.0.0",
+  "a2a-sdk[http-server]==1.2.2",
+  "mcp==2.3.0",
+  "jsonpatch==1.33",
+  "httpx==0.28.1",
+  "cryptography==50.0.2",
+  # Model providers behind the model port (agents/models.py); each is used only with a key.
+  "anthropic==1.11.0",
+  "openai==3.26.0",
+  "google-genai==2.28.0",
+]
+
+[project.scripts]
+consilith-room = "consilith_room.api.app:main"
+
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/consilith_room"]
