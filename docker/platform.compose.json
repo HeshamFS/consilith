@@ -24,7 +24,8 @@
         "CONSILITH_REFEREE_URL": "http://referee:8080",
         "CONSILITH_WEB_ORIGIN": "http://127.0.0.1:8800",
         "CONSILITH_EXTENSION_MODULES": "[]",
-        "CONSILITH_PLUGIN_CATALOG": "/catalog/plugins.json"
+        "CONSILITH_PLUGIN_CATALOG": "/catalog/plugins.json",
+        "VALENCY_API_KEY": "${VALENCY_API_KEY:-}"
       },
       "env_file": [
         ".docker/room.env"
