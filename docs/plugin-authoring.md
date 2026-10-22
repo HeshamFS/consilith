@@ -67,6 +67,15 @@ Review and sequence support extends these generic contracts:
 
 These fields require the matching platform build. They do not change an older room's pinned schema; replacing an admitted release still requires explicit migration or a new room.
 
+### Charts, tables and apps as artifacts
+
+A plugin shows data as well-designed generative UI by storing plain artifacts. It ships no layout and no frontend code. The workspace groups a result's artifacts like a report: apps and reports, then charts in a responsive grid, then tables, then raw files. In chat the agent shows one artifact through `ui.show` by artifact handle.
+
+- **Chart.** A JSON artifact `{"kind": "chart", "chart": <ChartData>}`. `ChartData` is the type in `apps/web/src/shared/a2ui/types.ts`: `kind` is `line`, `scatter` or `bar`, then `xLabel`, `yLabel`, `xUnit`, `yUnit`, optional `title` and `stamp`, and up to 12 `series` of `{name, x, y, unit?}`. A long line or scatter series is thinned by picking points (at most 2000) and marked as decimated. A histogram is a `bar` chart over bins: `x` holds the bin labels as strings (for example the bin centres) and `y` the counts, with the unit in the axis label.
+- **Table.** A JSON artifact `{"kind": "table", "columns": [...], "rows": [...], "units"?: {column: unit}, "labels"?: {column: header}, "caption"?: "..."}`. A column is a name or `{key, label, unit}`, a row is an array in column order or an object by name. The table sorts on screen, aligns numbers, shows units in the header, keeps a sticky header and bounded height, and offers a CSV download of every stored row.
+- **Older shapes keep working.** `{columns, rows}` without `kind` is a table (a trailing `(unit)` in a column name becomes its unit), and `{x, y, title?, xLabel?, yLabel?}` is one line.
+- **App or report.** An artifact with media type `text/html` and role `app` or `report` is a self-contained page, shown in a sandboxed frame. An app that draws another artifact names it by a stem: `<stem>_viewer` draws `<stem>_json`. The frame's "Data table" toggle shows `<stem>_table`, or the first table.
+
 Intake choices are identified by capability and input kind together, so independent plugins can both accept a file or text. The server checks uploads against generic platform formats and the room's pinned plugin MIME declarations. Text knowledge can be read in the workspace; binary knowledge is offered as an explicit download. A removed installed plugin remains visible through its historical room descriptor, with execution availability reported separately.
 
 ## Install, activate and replace

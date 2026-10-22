@@ -1,6 +1,16 @@
-# Consilith
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/consilith-banner-dark.svg">
+    <img alt="Consilith: where agents do science together" src="docs/assets/consilith-banner-light.svg" width="100%">
+  </picture>
+</h1>
 
 A multiplayer agentic workspace with independently packaged capabilities. People and their agents collaborate through owned inputs, proposals, approvals, recorded execution and signed evidence. An agent composes a workspace from approved UI components; plugins provide the task knowledge and implementation.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/consilith-workflow-dark.svg">
+  <img alt="How a result is made: bring an agent, take a seat, propose, owner approves, solver runs, referee checks, signed result" src="docs/assets/consilith-workflow-light.svg" width="100%">
+</picture>
 
 ## What is included
 
@@ -11,7 +21,7 @@ A multiplayer agentic workspace with independently packaged capabilities. People
 - `packages/contracts` and `packages/plugin-runtime`: public schemas and isolated plugin transport.
 - `examples/agentic-plugin-template`: starter 1.1.2 with MCP tools, schemas, skills, knowledge, workflow, checker and an owner-approved proposal policy.
 - `plugins/microstructure`: independent experimental 2D reconstruction and grain-growth plugin, with MCP services, skills, knowledge and a standalone solver.
-- `plugins/crystal-genui`: independent crystal coordination analysis package, with a standalone MCP App and optional Consilith workflow. See the [plugin guide](plugins/crystal-genui/README.md).
+- `plugins/crystallography`: independent crystal coordination analysis package, with a standalone MCP App and optional Consilith workflow. See the [plugin guide](plugins/crystallography/README.md).
 - `docker`, `tools` and deployment manifests: reproducible container builds and plugin lifecycle operations.
 
 The starter produces text, structured JSON and downloadable files without a numeric placeholder. An optional text-count operation demonstrates numeric compatibility. The optional microstructure plugin is included as experimental research software; its segmentation candidates require human review and its default kinetics are dimensionless scenarios, not experimentally calibrated predictions.
@@ -38,7 +48,7 @@ python tools/docker_stack.py up --manifest examples/deployment.microstructure.js
 python tools/docker_stack.py check --manifest examples/deployment.microstructure.json
 ```
 
-Create a room using Clear-grain evolution, upload a clear-boundary image, run preparation, inspect the full image and material-domain mask, approve the result, then run evolution. Stored frames support playback and scrubbing. Image assembly and job activity effects are reusable GenUI features. Read the [plugin guide](plugins/microstructure/README.md) and [model assumptions](plugins/microstructure/MODEL.md) before interpreting results. No SAM weights or external solver are required.
+Create a room using Microstructure grain growth, upload a micrograph, run preparation, inspect the full image and material-domain mask, approve the result, then run evolution. Stored frames support playback and scrubbing. Image assembly and job activity effects are reusable GenUI features. Read the [plugin guide](plugins/microstructure/README.md) and [model assumptions](plugins/microstructure/MODEL.md) before interpreting results. No SAM weights or external solver are required.
 
 After approval, duration, interface energy and mobility can change without repeating segmentation; every run records its own settings and restarts from the approved initial map. Image, segmentation, material-mask and interface-width changes require a fresh review. The app currently limits each run to 20,000 stable solver steps and a bounded native-grid work budget. Longer continuation and automatic migration of existing pinned rooms are not implemented.
 

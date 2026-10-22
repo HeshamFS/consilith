@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="Consilith">
+
+<g transform="translate(0.00 0.00) scale(2.5600)"><path d="M50 40 C59 31 59 15 50 6 C41 15 41 31 50 40 Z" transform="rotate(0 50 50)" style="fill:#7C9BFF"/><path d="M50 40 C59 31 59 15 50 6 C41 15 41 31 50 40 Z" transform="rotate(90 50 50)" style="fill:#FF7FB5"/><path d="M50 40 C59 31 59 15 50 6 C41 15 41 31 50 40 Z" transform="rotate(180 50 50)" style="fill:#5FD3D9"/><path d="M50 40 C59 31 59 15 50 6 C41 15 41 31 50 40 Z" transform="rotate(270 50 50)" style="fill:#B79CFF"/><path d="M50 43 L57 50 L50 57 L43 50 Z" style="fill:#FFFFFF"/></g>
+</svg>
