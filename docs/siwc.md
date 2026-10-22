@@ -126,3 +126,67 @@ The call returns when the response has completed (no streaming to the caller). E
 - The pinned DevKit is built into the Docker image from source; standalone installation is
   documented in the sidecar README. The example model IDs above are HTTP examples, not a
   guaranteed model catalog; use the signed-in account's actual `/models` response.
+
+## Several ChatGPT accounts (`CONSILITH_SIWC_MULTI`)
+
+Off by default. With it off, everything above is exactly as before: one ChatGPT sign-in per host and
+one owner in the room. Turn it on (the same variable on the room server and on the sidecar) only when
+two or more people use their own ChatGPT plan.
+
+With it on, the old routes answer `404 legacy_routes_disabled`, and each person has an account on the
+sidecar, named by `accountKey`: the first 32 hex characters of `HMAC-SHA256(secret, "siwc-account:" + person)`.
+The room computes the same key from the shared secret, so the sidecar never learns who a key belongs to.
+
+### Routes
+
+All need the `X-Consilith-Siwc` header. With the flag off, `/v2/accounts/...` answers `404 multi_disabled`.
+
+| Route | Meaning |
+|---|---|
+| `GET /v2/capabilities` | `{apiVersion, multi, signIn: {ttlSeconds, attemptsPer10Minutes, authOrigins, pasteCallback}, identity, reply, ...}`. Always available. |
+| `GET /v2/accounts/:key/status` | Like `/status` for one account. A refused sign-in shows in `error`. |
+| `POST /v2/accounts/:key/login` | Like `/login`. Optional body `{"newProfile": true}` to sign a different ChatGPT account into this slot. |
+| `POST /v2/accounts/:key/logout` | Like `/logout`. Cancels the sign-in only if this account holds it. |
+| `GET /v2/accounts/:key/models` | Like `/models`. |
+| `POST /v2/accounts/:key/reply` | Like `/reply`. |
+| `POST /v2/accounts/:key/bind-legacy` | The room tells the sidecar that this key is the person who signed in before several accounts existed: their account keeps the old directory and key label. |
+| `POST /v2/accounts/:key/callback` | Paste-the-callback (below). |
+
+### Rules
+
+- **One account per ChatGPT identity.** When a sign-in finishes, its identity (the stable id if the
+  DevKit offers one, otherwise the email) is compared with every other account. A match signs the new
+  account out and the status carries `identity_in_use`. If the identity has neither id nor email and
+  another account is connected, the new one is refused with `identity_unknown`. Checks run one at a time.
+- **One sign-in at a time.** The OAuth callback is on a fixed loopback port. A sign-in holds a mutex for
+  150 seconds, only the holder can cancel it, and a person gets 3 attempts per 10 minutes
+  (`429 sign_in_rate_limited`). A second person gets `409 sign_in_busy` with no URL in the body. A person
+  who is already connected gets `409 already_signed_in`.
+- **Replies.** At most 4 replies at once across all accounts, and one in flight per account
+  (`409 busy` for a second).
+- **Storage.** Accounts are listed in `home/accounts.json` (mode 600) with a keyed hash of each identity.
+  The legacy account keeps `home` and the legacy key label. A new account uses `home/<accountKey>` and its
+  own key entry (`secret-tool ... account <key>` on Linux, a `consilith-siwc:<key>` entry on macOS, its own
+  `credential-key.dpapi` on Windows). Nothing is moved and no key changes. The macOS key now goes in on
+  standard input of `security -i`, not in a process argument.
+- **Restart.** `accounts.json` and each directory are read again; people stay signed in.
+
+### Paste-the-callback
+
+Off unless the sidecar is started with `CONSILITH_SIWC_PASTE=1`. For a person whose browser is not on the
+host: after ChatGPT sign-in the browser ends on a `http://127.0.0.1:8787/auth/callback?...` page that does
+not load. They paste that address into the page, which sends it to `POST /me/agent/siwc/callback` in the
+body. The sidecar accepts it only for the account that holds the sign-in, only with the `state` of that
+sign-in, and once; it then makes the same request to the SDK's listener the browser would have made, and the
+SDK checks `state` and PKCE itself. The address is never logged or returned. Not yet run against a real
+sign-in. The room's journal and log redaction lists do not yet include `code` and `state` (`protocols/journal.py`
+belongs to another package).
+
+### On the room
+
+`GET /me/agent/siwc` answers for the signed-in person only. With several accounts on it adds `multi: true`,
+masks the email (`a***@example.org`), puts the server's words in `reason` (including a refused identity or a
+busy sign-in), and sets `offerDisconnect` when the person has left every room. `POST /me/agent/siwc/login`
+checks that the sign-in address is https on an origin the sidecar declared in its capabilities and returns
+`authOrigins` so the page checks it too. People sign in with a private window or after signing out of ChatGPT,
+otherwise ChatGPT can complete the sign-in with an account that is already open in that browser.
