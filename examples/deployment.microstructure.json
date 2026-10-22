@@ -48,11 +48,28 @@
         ],
         "requirements": [
           "consilith-plugin-runtime",
-          "consilith-microstructure[platform]"
+          "consilith-microstructure[platform,report,adaption]"
         ]
       },
       "mcpServices": [
-        "solver-microstructure"
+        "solver-microstructure",
+        "solver-adaption"
+      ],
+      "tools": [
+        "microstructure.prepare_showcase",
+        "microstructure.evolve_showcase",
+        "microstructure.report",
+        "microstructure.dataset",
+        "adaption.estimate",
+        "adaption.adapt"
+      ],
+      "policyPorts": [
+        "snapshot",
+        "artifact",
+        "current_results",
+        "result",
+        "run_tool",
+        "review"
       ]
     }
   ],
@@ -101,8 +118,55 @@
           "plugins/microstructure"
         ],
         "requirements": [
-          "consilith-microstructure[platform]"
+          "consilith-microstructure[platform,report]"
         ]
+      },
+      "tools": [
+        "microstructure.prepare_showcase",
+        "microstructure.evolve_showcase",
+        "microstructure.report",
+        "microstructure.dataset"
+      ],
+      "memory": "4g"
+    },
+    {
+      "id": "solver-adaption",
+      "image": "consilith-microstructure-adaption:local",
+      "url": "http://solver-adaption:8080/mcp",
+      "command": [
+        "python",
+        "/app/container.py",
+        "solver"
+      ],
+      "environment": {
+        "CONSILITH_SOLVER_MODULE": "consilith_microstructure.adaption_server",
+        "CONSILITH_MCP_ALLOWED_HOSTS": "[\"solver-adaption:8080\", \"localhost:*\", \"127.0.0.1:*\"]",
+        "ADAPTION_MAX_CREDITS": "50",
+        "ADAPTION_TIMEOUT_S": "900",
+        "ADAPTION_WAIT_S": "30"
+      },
+      "build": {
+        "packages": [
+          "packages/contracts",
+          "plugins/microstructure"
+        ],
+        "requirements": [
+          "consilith-microstructure[adaption]"
+        ]
+      },
+      "tools": [
+        "adaption.estimate",
+        "adaption.adapt"
+      ],
+      "memory": "1g",
+      "hostEnv": [
+        "ADAPTION_API_KEY"
+      ],
+      "egress": {
+        "hosts": [
+          "api.prod.adaptionlabs.ai"
+        ],
+        "reason": "Adaption Labs API for the training-set estimate and the confirmed adapt; the key is read only inside this service and the client allow-lists the host in code"
       }
     }
   ]
