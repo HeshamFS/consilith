@@ -5,69 +5,81 @@
   </picture>
 </h1>
 
-A multiplayer agentic workspace with independently packaged capabilities. People and their agents collaborate through owned inputs, proposals, approvals, recorded execution and signed evidence. An agent composes a workspace from approved UI components; plugins provide the task knowledge and implementation.
+<p align="center"><b>A multiplayer science studio for people and their AI agents.</b><br>
+Built together. Checked apart.</p>
+
+Consilith is a shared room where colleagues and their personal agents work on one model. Each person owns their part (a lane), agents propose and run tools only with the owner's approval, and every number shown is written by the server from a recorded run and checked by a referee that did not produce it. Domain science comes from independently packaged plugins.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/consilith-workflow-dark.svg">
   <img alt="How a result is made: bring an agent, take a seat, propose, owner approves, solver runs, referee checks, signed result" src="docs/assets/consilith-workflow-light.svg" width="100%">
 </picture>
 
-## What is included
+## Highlights
 
-- `apps/room`: accounts, collaboration, agent orchestration, permissions and execution records.
-- `apps/referee`: independently configured checking and signed evidence.
-- `apps/web`: the branded React workspace and generative UI renderer.
-- `apps/siwc`: the containerized Sign in with ChatGPT bridge.
-- `packages/contracts` and `packages/plugin-runtime`: public schemas and isolated plugin transport.
-- `examples/agentic-plugin-template`: starter 1.1.2 with MCP tools, schemas, skills, knowledge, workflow, checker and an owner-approved proposal policy.
-- `plugins/microstructure`: independent experimental 2D reconstruction and grain-growth plugin, with MCP services, skills, knowledge and a standalone solver.
-- `plugins/crystallography`: independent crystal coordination analysis package, with a standalone MCP App and optional Consilith workflow. See the [plugin guide](plugins/crystallography/README.md).
-- `docker`, `tools` and deployment manifests: reproducible container builds and plugin lifecycle operations.
+- **Your agent, your model.** Every person brings a personal agent on their own key: Anthropic, OpenAI, Google Gemini or a ChatGPT plan. Mixed providers work in one room.
+- **Agents talk to each other.** Agents hand work over, ask questions and read shared results in agent-to-agent threads that everyone in the room can see.
+- **Generative workspace.** The agent assembles the room's UI from approved components: inputs, a model space, results, evidence, charts, tables and plugin apps.
+- **Numbers you can trust.** Models never type a number or a citation. Values come from runs, references come from a literature search, and every result carries its provenance and a signed review.
+- **Plugins, not forks.** Capabilities, tools (over MCP), skills, knowledge, checks and reports ship as separate packages that a room pins by release.
 
-The starter produces text, structured JSON and downloadable files without a numeric placeholder. An optional text-count operation demonstrates numeric compatibility. The optional microstructure plugin is included as experimental research software; its segmentation candidates require human review and its default kinetics are dimensionless scenarios, not experimentally calibrated predictions.
+## Quick start
 
-## Run locally with Docker
-
-Install Python 3.12, uv and Docker with Linux containers enabled. From this repository root:
+Requirements: Docker with Linux containers, Python 3.12 and [uv](https://docs.astral.sh/uv/).
 
 ```sh
-python tools/docker_stack.py up
-python tools/docker_stack.py check
+python tools/docker_stack.py up      # build and start the stack
+python tools/docker_stack.py check   # health and sign-in smoke test
 ```
 
-Open [Consilith](http://127.0.0.1:8800). The development deployment uses a local sign-in mailbox. Connect your own account at `/settings/agent` to enable ChatGPT; the bridge container being healthy does not mean an account is authorized. Account sessions and generated secrets never belong in Git.
+Open <http://127.0.0.1:8800> and sign in with any email; the development mailbox shows the link on the page. Then:
 
-The initial build fetches pinned dependencies and the separately licensed ChatGPT DevKit. Read [Docker operations](docs/docker.md) and [the bridge contract](docs/siwc.md), including its usage terms. This is a local development configuration, not an internet-facing production deployment.
+1. **Set up your agent** (*Your agent*): pick a provider and model and paste your API key. Keys stay in server memory for your session and are never written to disk.
+2. **Open a room**, choose a studio, and invite a colleague by email.
+3. **Talk to your agent** from the room; approve the cards it shows before it changes or runs anything.
 
-## Run the microstructure showcase
+Optional services read their keys from your shell when you run `up`:
 
-The default deployment remains domain-neutral with the starter plugin. To include the independently packaged microstructure plugin:
+| Variable | Enables |
+|---|---|
+| `VALENCY_API_KEY` | Literature search for every agent ([Valency](https://docs.valency.io)) |
+| `ADAPTION_API_KEY` | Training-set estimate and adaptation in the microstructure plugin ([Adaption Labs](https://adaptionlabs.ai)) |
 
-```sh
-python tools/docker_stack.py up --manifest examples/deployment.microstructure.json
-python tools/docker_stack.py check --manifest examples/deployment.microstructure.json
-```
+This is a local development deployment. See [Docker operations](docs/docker.md) before exposing it to a network.
 
-Create a room using Microstructure grain growth, upload a micrograph, run preparation, inspect the full image and material-domain mask, approve the result, then run evolution. Stored frames support playback and scrubbing. Image assembly and job activity effects are reusable GenUI features. Read the [plugin guide](plugins/microstructure/README.md) and [model assumptions](plugins/microstructure/MODEL.md) before interpreting results. No SAM weights or external solver are required.
+## Included plugins
 
-After approval, duration, interface energy and mobility can change without repeating segmentation; every run records its own settings and restarts from the approved initial map. Image, segmentation, material-mask and interface-width changes require a fresh review. The app currently limits each run to 20,000 stable solver steps and a bounded native-grid work budget. Longer continuation and automatic migration of existing pinned rooms are not implemented.
+| Plugin | What it does |
+|---|---|
+| [Microstructure grain growth](plugins/microstructure/README.md) | Upload a micrograph, review the segmentation, run a dimensionless 2D grain-growth evolution, write a marimo report with references, and build an Adaption training set. Experimental research software: read [its model](plugins/microstructure/MODEL.md). |
+| [Crystal structure and coordination](plugins/crystallography/README.md) | Coordination polyhedra from a CIF or a bundled example, with a 3D viewer, charts, tables and a marimo report. |
+| [Agentic plugin starter](examples/agentic-plugin-template/README.md) | A domain-neutral template to start your own plugin. |
 
-## Build your own plugin
+## Repository layout
 
-Copy the [starter package](examples/agentic-plugin-template/README.md) into its own repository and follow the [wiring guide](examples/agentic-plugin-template/DOMAIN_WIRING.md). Supply its manifest, input schema, MCP services, tools, workflow, checker, skills and knowledge. The platform discovers installed capabilities and exposes active, pinned resources to agents.
-
-```sh
-python tools/docker_stack.py plugin-update --manifest deployment.json --plugin starter
-```
-
-Updates stage and validate candidates before publication. Existing rooms keep their admitted release identity; incompatible replacement requires explicit migration or a new room. New frontend primitives and host permissions require a platform contract extension.
+| Path | Contents |
+|---|---|
+| `apps/room` | Accounts, rooms, permissions, the agent loop, runs and the API |
+| `apps/referee` | Independent checks and signed evidence |
+| `apps/web` | The React workspace and generative UI renderer |
+| `apps/siwc` | The Sign in with ChatGPT bridge |
+| `packages/contracts`, `packages/plugin-runtime` | Public schemas and the isolated plugin transport |
+| `plugins/` | Independently packaged plugins |
+| `docker/`, `tools/`, `deployment.json` | Container builds, deployment and plugin release tooling |
 
 ## Documentation
 
-- [Architecture and boundaries](docs/architecture.md)
-- [Plugin authoring](docs/plugin-authoring.md)
-- [Web API](docs/web-api.md)
-- [Development and builds](docs/development.md)
-- [Dependency notices](DEPENDENCIES.md)
+- [Architecture](docs/architecture.md): what the platform owns and what a plugin owns
+- [Agents](docs/agents.md): personal agents, approvals, agent-to-agent and research tools
+- [Plugin authoring](docs/plugin-authoring.md): build and ship a plugin
+- [Web API](docs/web-api.md): the routes the web app uses
+- [Docker operations](docs/docker.md) and [development](docs/development.md)
+- [Sign in with ChatGPT bridge](docs/siwc.md)
 
-The source snapshot is prepared for publication. Private specifications, agent guidance, test suites, credentials, run receipts and build products are intentionally excluded. No repository-wide open-source license has been selected; dependency licenses remain applicable.
+## Contributing
+
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow, the checks to run, and how to propose a plugin.
+
+## License
+
+Consilith is licensed under the [Apache License 2.0](LICENSE). Some plugins and dependencies keep their own licenses; see [NOTICE](NOTICE) and [DEPENDENCIES.md](DEPENDENCIES.md).

@@ -1,6 +1,6 @@
 # Building a plugin independently
 
-A plugin is an independently packaged implementation of the Consilith contracts. The platform owns identity, collaboration, authority, jobs, artifacts, UI composition and signed evidence. A plugin owns its domain schemas, methods, workflows, checks and supporting resources. Domain implementations are deferred; the current default is a domain-neutral starter.
+A plugin is an independently packaged implementation of the Consilith contracts. The platform owns identity, collaboration, authority, jobs, artifacts, UI composition and signed evidence. A plugin owns its domain schemas, methods, workflows, checks and supporting resources. This repository ships two plugins (microstructure and crystallography) and a domain-neutral starter to copy.
 
 ## Package contents
 

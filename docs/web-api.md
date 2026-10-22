@@ -1,23 +1,43 @@
 # Web API
 
-The Docker gateway exposes the room service under `/api`; it removes that prefix when forwarding. Authenticate requests using the account bearer token. Browser sessions are tab-scoped. The public schemas are in `packages/contracts/src/consilith_contracts` and route definitions in `apps/room/src/consilith_room/api/app.py`.
+The gateway serves the room API under `/api` and strips the prefix. Send the account token as `Authorization: Bearer <token>`; browser sessions are per tab. Request and response models live in `packages/contracts/src/consilith_contracts` and `apps/room/src/consilith_room/api`. Treat those as the contract, not old example payloads.
 
-## Discovery and rooms
+## Accounts and agents
 
-- `GET /capabilities`: capability descriptors used for rooms, roles and workspace controls.
-- `GET /plugins`: installed plugin metadata.
-- `GET /rooms/{room_id}`: current shared document, including ownership, runs, typed results and ledger references.
-- `POST /rooms/{room_id}/plugins/{plugin_id}/activate`: explicitly activate an installed plugin, subject to authority and compatibility checks.
-- `GET /rooms/{room_id}/knowledge/{knowledge_id}`: authorized access to active, pinned plugin knowledge.
+| Route | Purpose |
+|---|---|
+| `POST /auth/email`, `POST /auth/email/redeem` | email sign-in link |
+| `GET /me`, `PUT /me` | profile: name, colour, discipline |
+| `GET /me/agent`, `PUT /me/agent` | your agent: provider, model, autonomy |
+| `PUT /me/agent/key`, `DELETE /me/agent/key` | connect or remove a model key |
+| `GET /me/agent/models` | models your key can use |
+| `/me/agent/siwc/*` | Sign in with ChatGPT ([siwc.md](siwc.md)) |
+| `GET /providers` | supported providers |
 
-## Execution and composition
+## Rooms
 
-- `POST /rooms/{room_id}/twin`: a revision-aware authorized patch with an operation ID and reason.
-- `POST /rooms/{room_id}/solve/{case_id}`: execute the registered capability workflow using stored inputs.
-- `GET /rooms/{room_id}/surfaces/{case_id}`: retrieve a saved workspace surface.
+| Route | Purpose |
+|---|---|
+| `GET /rooms`, `POST /rooms`, `GET /rooms/{id}` | list, create and read a room's shared document |
+| `POST /rooms/{id}/invites`, `POST /invites/{token}/accept` | invite and join |
+| `POST /rooms/{id}/lanes/{case}/{lane}/claim` and `.../release` | take or give back a lane |
+| `POST /rooms/{id}/twin` | revision-checked input patch |
+| `POST /rooms/{id}/proposals/{prop}/decision` | approve or decline a proposal |
+| `POST /rooms/{id}/solve/{case}` | run the case workflow from stored inputs |
+| `GET /rooms/{id}/queue` | jobs and their state |
+| `POST /rooms/{id}/artifacts`, `GET /rooms/{id}/artifacts/{sha256}` | upload and fetch files |
+| `GET /rooms/{id}/apps/{sha256}` | a plugin app or report page |
+| `GET /rooms/{id}/plugins/updates`, `POST /rooms/{id}/plugins/migrate` | newer plugin releases; owner moves the room to them |
 
-Input and result schemas are supplied by the installed capability and public contracts. Results may contain numbers, text, categories, JSON or content-addressed artifacts. Do not assume every result is a float or every capability is scientific. Readiness, input-save acknowledgment and revision changes are separate from tool completion.
+## Chat and agent-to-agent
 
-The shared document exposes proposal decisions, evidence and replay state. Authorization is enforced server-side, including lane ownership and declared plugin ports. Treat the Python schemas and registered route definitions as the authoritative request/response contract rather than copying an old example payload.
+| Route | Purpose |
+|---|---|
+| `POST /rooms/{id}/agui/agent` | talk to your agent (AG-UI event stream) |
+| `GET /rooms/{id}/agent/history` | your chat history |
+| `GET /rooms/{id}/agent/tools` | the tools your agent has in this room |
+| `GET /rooms/{id}/threads`, `GET /rooms/{id}/threads/{thread}` | agent-to-agent threads |
+| `POST /rooms/{id}/peers/ask` | write to a colleague's agent yourself |
+| `POST /rooms/{id}/peers/settings` | accept, pause or mute agent messages |
 
-The provider bridge API is documented separately in [siwc.md](siwc.md). A browser must never receive the internal bridge capability secret.
+Results can be numbers, text, categories, JSON or files. Do not assume every result is a float. Authorization is enforced on the server for every route, including lane ownership and plugin ports.
