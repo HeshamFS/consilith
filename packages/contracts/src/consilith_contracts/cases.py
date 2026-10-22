@@ -7,6 +7,7 @@ authenticated participants claim lanes independently of their names.
 from __future__ import annotations
 
 import re
+from datetime import date
 from typing import Annotated, Any, Literal, Self, cast
 
 from pydantic import AfterValidator, Field, model_validator
@@ -53,11 +54,28 @@ Identifier = Annotated[
 ]
 
 
+_DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
+_SHA256 = re.compile(r"[a-f0-9]{64}")
+
+
 class FieldDef(Contract):
     """One spec value inside a lane. Numbers are stored as ``{"v": float, "unit": str}``."""
 
     name: Identifier
-    kind: Literal["number", "integer", "text", "choice", "list", "object"]
+    # ``boolean``, ``date``, ``multichoice`` and ``artifact`` are additive (contract 1.1): a
+    # case that uses none of them reads and validates exactly as before.
+    kind: Literal[
+        "number",
+        "integer",
+        "text",
+        "choice",
+        "list",
+        "object",
+        "boolean",
+        "date",
+        "multichoice",
+        "artifact",
+    ]
     unit: str = ""  # the dimension a number must have, e.g. "mm"
     min: float | None = None
     max: float | None = None
@@ -67,6 +85,8 @@ class FieldDef(Contract):
     default: Any = None
     human_only: bool = False
     review_quantity: Identifier | None = None
+    # A text field the person writes as paragraphs. Unset (and left off the wire) otherwise.
+    multiline: bool | None = None
 
     @model_validator(mode="after")
     def _defaults_and_review(self) -> Self:
@@ -81,6 +101,14 @@ class FieldDef(Contract):
             from .base import canonical_bytes
 
             canonical_bytes(self.default)
+        return self
+
+    @model_validator(mode="after")
+    def _multiline_is_for_text(self) -> Self:
+        if self.multiline is not None and self.kind != "text":
+            raise ValueError("multiline applies to a text field only")
+        if self.kind in ("choice", "multichoice") and len(self.choices) != len(set(self.choices)):
+            raise ValueError("choices are unique")
         return self
 
 
@@ -184,6 +212,32 @@ def _validate_field(f: FieldDef, path: str, value: Any) -> None:
         case "choice":
             if value not in f.choices:
                 raise SpecError(path, f"must be one of {', '.join(f.choices)}")
+        case "boolean":
+            if not isinstance(value, bool):
+                raise SpecError(path, "must be true or false")
+        case "date":
+            if not isinstance(value, str) or _DATE.fullmatch(value) is None:
+                raise SpecError(path, "must be a date written YYYY-MM-DD")
+            try:
+                date.fromisoformat(value)
+            except ValueError as exc:
+                raise SpecError(path, "must be a real calendar date") from exc
+        case "multichoice":
+            if not isinstance(value, list):
+                raise SpecError(path, "must be a list of choices")
+            picked = cast(list[Any], value)
+            if any(not isinstance(item, str) for item in picked) or len(set(picked)) != len(picked):
+                raise SpecError(path, "must be a list of distinct choices")
+            unknown = [item for item in picked if item not in f.choices]
+            if unknown:
+                raise SpecError(path, f"must be from {', '.join(f.choices)}")
+        case "artifact":
+            ref = cast(dict[str, Any], value) if isinstance(value, dict) else None
+            sha = ref.get("artifact") if ref is not None else None
+            if ref is None or set(ref) != {"artifact"} or not isinstance(sha, str):
+                raise SpecError(path, 'an artifact is stored as {"artifact": sha256}')
+            if _SHA256.fullmatch(sha) is None:
+                raise SpecError(path, "the artifact reference is not a sha256 digest")
         case "list":
             if not isinstance(value, list):
                 raise SpecError(path, "must be a list")

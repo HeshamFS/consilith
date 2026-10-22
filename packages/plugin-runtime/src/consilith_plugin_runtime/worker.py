@@ -12,9 +12,11 @@ import importlib.metadata
 import importlib.util
 import inspect
 import json
+import os
+import stat
 import sys
-import tempfile
 import threading
+from contextlib import suppress
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -30,17 +32,110 @@ from .codec import (
     write_message,
 )
 
-_HASH_CACHE = Path(tempfile.gettempdir()) / "consilith-plugin-file-hashes.json"
-try:
-    _hashes = json.loads(_HASH_CACHE.read_text())
-except (OSError, ValueError):
-    _hashes = {}
+HASH_DIR_ENV = "CONSILITH_PLUGIN_HASH_DIR"
+_hashes: dict[str, Any] = {}
+_cache_state: dict[str, Any] = {"ready": False, "file": None}
+
+
+def private_directory(path: Path) -> bool:
+    """A real directory, not a link, that only the current user can enter.
+
+    On POSIX the owner must be this user and no group or other bit may be set. Windows has no
+    modes here: the check refuses links and junctions and leaves access to the ACL of the
+    per-user directory the host created.
+    """
+    try:
+        info = path.lstat()
+    except OSError:
+        return False
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+        return False
+    if os.name == "nt":
+        return not path.is_junction()
+    return info.st_uid == os.geteuid() and not info.st_mode & 0o077
+
+
+def _private_file(info: os.stat_result) -> bool:
+    if not stat.S_ISREG(info.st_mode):
+        return False
+    return os.name == "nt" or (info.st_uid == os.geteuid() and not info.st_mode & 0o077)
+
+
+def _cache_file() -> Path | None:
+    """The cache file inside the host's private directory, or None: then every hash is computed."""
+    configured = os.environ.get(HASH_DIR_ENV)
+    if not configured:
+        return None
+    directory = Path(configured)
+    return directory / "file-hashes.json" if private_directory(directory) else None
+
+
+def _load_cache() -> None:
+    if _cache_state["ready"]:
+        return
+    _cache_state["ready"] = True
+    path = _cache_file()
+    _cache_state["file"] = path
+    if path is None:
+        return
+    try:
+        # Open without following a link and judge the open file, not the name that led to it.
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    except OSError:
+        return
+    try:
+        if not _private_file(os.fstat(descriptor)):
+            return
+        with os.fdopen(descriptor, "rb", closefd=False) as stream:
+            loaded = json.loads(stream.read(64 * 1024 * 1024))
+    except (OSError, ValueError):
+        return
+    finally:
+        os.close(descriptor)
+    if isinstance(loaded, dict):
+        for key, value in loaded.items():
+            if (
+                isinstance(key, str)
+                and isinstance(value, dict)
+                and isinstance(value.get("stat"), list)
+                and isinstance(value.get("digest"), str)
+                and len(value["digest"]) == 64
+            ):
+                _hashes[key] = value
+
+
+def save_hash_cache() -> None:
+    """Best effort: a write that cannot be made private is skipped, never made public."""
+    path = _cache_state["file"]
+    if path is None or not private_directory(path.parent):
+        return
+    temporary = path.with_name(f"{path.name}.{os.getpid()}.next")
+    try:
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            json.dump(_hashes, stream)
+        temporary.replace(path)
+    except OSError:
+        with suppress(OSError):
+            temporary.unlink()
+
+
+def reset_hash_cache() -> None:
+    """Forget the in-memory cache and decide again where, and whether, to read one."""
+    _hashes.clear()
+    _cache_state.update(ready=False, file=None)
 
 
 def content_hash(path: Path) -> str:
     """Cache byte hashing by identity; every invocation inventories every asset."""
-    stat = path.stat()
-    signature = [stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_ino]
+    _load_cache()
+    stat_result = path.stat()
+    signature = [
+        stat_result.st_size,
+        stat_result.st_mtime_ns,
+        stat_result.st_ctime_ns,
+        stat_result.st_ino,
+    ]
     key = str(path.resolve())
     value = _hashes.get(key, {})
     if value.get("stat") == signature:
@@ -185,7 +280,7 @@ def prepare(reference: str) -> tuple[dict, dict, dict]:
         json.dumps(pin, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
     metadata = {**pin, "digest": digest, "manifest": manifest}
-    _HASH_CACHE.write_text(json.dumps(_hashes))
+    save_hash_cache()
     functions = {}
 
     def descriptor(value: Any, path: tuple[str, ...]) -> Any:

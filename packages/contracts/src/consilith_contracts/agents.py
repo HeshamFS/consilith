@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field
 
+from .adhoc import AdHocPlan
 from .base import Contract
+from .providers import ProviderId
 from .room import PatchOp
 
 
@@ -66,7 +68,8 @@ class AgentConfig(Contract):
     watches: list[Watch] = Field(default_factory=list[Watch])
     goal: str = ""
     compute_budget_s: float = Field(default=60.0, gt=0)
-    model_provider: Literal["scripted", "anthropic", "openai", "gemini", "siwc"] = "scripted"
+    # A name from the provider registry (providers.py); an unknown name is refused.
+    model_provider: ProviderId = "scripted"
     model_name: str | None = None
 
     def tool_allowed(self, tool: str) -> bool:
@@ -102,6 +105,15 @@ class AgentWarningOp(Contract):
     evidence: list[str] = Field(default_factory=list[str])
 
 
+class AgentOpCall(Contract):
+    """One platform op a brought agent asks for. It runs through ToolHost under the agent's own
+    autonomy and the profile of the message it answers, so the same checks apply as for a model.
+    """
+
+    op: str = Field(min_length=1, max_length=100)
+    args: dict[str, Any] = Field(default_factory=dict[str, Any])
+
+
 class AgentOps(Contract):
     """What a brought agent returns, as an A2A Part(data=...) with this media type."""
 
@@ -109,6 +121,11 @@ class AgentOps(Contract):
     proposals: list[AgentProposalOp] = Field(default_factory=list[AgentProposalOp])
     warnings: list[AgentWarningOp] = Field(default_factory=list[AgentWarningOp])
     message: str | None = None
+    # Platform ops, each run through ToolHost. Which ops are allowed depends on what the agent is
+    # answering: its owner's chat, a room event, or a peer message.
+    ops: list[AgentOpCall] = Field(default_factory=list[AgentOpCall])
+    # A refs-only plan for the owner's chat. No numbers, no approve or run controls.
+    surface: AdHocPlan | None = None
 
 
 OPS_MEDIA_TYPE = "application/vnd.consilith.ops+json"
