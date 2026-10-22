@@ -7,7 +7,10 @@ A changed input snapshot makes an in-flight result historical rather than curren
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 from collections.abc import Callable
+from contextvars import ContextVar
 from typing import Any
 
 from consilith_contracts import (
@@ -26,6 +29,8 @@ from consilith_contracts import (
 )
 from consilith_contracts.execution import SolveOutcome
 from consilith_contracts.extensions import optional_extension, registry_operation
+from consilith_contracts.manifest_meta import ManifestMetaError, normalize_run_meta
+from consilith_contracts.plugins import RunMeta
 from consilith_contracts.review import LEDGER_MEDIA_TYPE, REVIEW_MEDIA_TYPE
 from consilith_contracts.solver import inputs_hash
 
@@ -49,8 +54,58 @@ from .status import acting
 from .tier0 import evaluate
 
 CONDUCTOR = Actor.room_agent("conductor")
+# The job a run belongs to. ``RunSupervisor`` and the tier-2 worker set it around the workflow;
+# ``run_tool`` reads it and passes ``jobId`` to ``open_run``, so a job card joins
+# job -> runs -> call-{runId} with no plugin change. Context variables follow awaits and tasks
+# created inside the workflow, which is how it reaches ``run_tool`` through the workflow context.
+current_job: ContextVar[str | None] = ContextVar("consilith_current_job", default=None)
+ERROR_TEXT_CAP = 300
+
+
+def error_text(exc: BaseException) -> str:
+    """The real error text of a failed job: the ``RoomError`` or ``SolverError`` message, not the
+    exception class name. Capped; a bare exception falls back to its class name."""
+    text = str(getattr(exc, "message", "") or exc).strip()
+    return (text or type(exc).__name__)[:ERROR_TEXT_CAP]
+
+
 TIER_DEADLINE_S = {0: 10.0, 1: 30.0, 2: 600.0}
 VERSION = "consilith-room/0.1.0"
+# A plugin declares how long a (capability, mode) takes in ``runMeta``. The call may take a
+# multiple of that estimate, never more than the operator's ceiling.
+RUN_CEILING_S = 3600.0
+DEADLINE_SLACK = 2.0
+DEADLINE_GRACE_S = 30.0
+# The mode a job was asked for, and a place for the job to learn which run it opened. The tier-2
+# worker sets both around the workflow; a plain call sets neither.
+declared_mode: ContextVar[str | None] = ContextVar("declared_mode", default=None)
+job_run_sink: ContextVar[Callable[[str], None] | None] = ContextVar("job_run_sink", default=None)
+
+
+def run_meta_for(room: RoomService, case: str, mode: str | None) -> RunMeta | None:
+    """The ``runMeta`` an active plugin declares for ``case`` in ``mode``, if any."""
+    if not mode:
+        return None
+    for plugin in room.read("room", "plugins") or []:
+        raw = plugin.get("runMeta", plugin.get("run_meta"))
+        if not raw:
+            continue
+        try:
+            declared = normalize_run_meta(raw)
+        except ManifestMetaError:
+            continue
+        found = declared.get(case, {}).get(mode)
+        if found is not None:
+            return found
+    return None
+
+
+def run_deadline_s(tier: int, meta: RunMeta | None, ceiling_s: float = RUN_CEILING_S) -> float:
+    """The call deadline: the tier's default, raised to a declared estimate, under the ceiling."""
+    deadline = TIER_DEADLINE_S.get(tier, 30.0)
+    if meta is not None and meta.estimate_s:
+        deadline = max(deadline, meta.estimate_s * DEADLINE_SLACK + DEADLINE_GRACE_S)
+    return min(deadline, ceiling_s)
 
 
 class Conductor:
@@ -63,7 +118,9 @@ class Conductor:
         referee_base: str,
         referee_token: str | None,
         verify: Callable[[LedgerEntry], bool],
+        run_ceiling_s: float = RUN_CEILING_S,
     ) -> None:
+        self.run_ceiling_s = run_ceiling_s
         self.store = store
         self.registry = registry
         self.caller = caller
@@ -80,9 +137,18 @@ class Conductor:
             from consilith_contracts import Autonomy
 
             config = room.agent_config(requester.id)
-            if config.autonomy != Autonomy.RUN_SOLVERS:
+            # A valid run grant (a card the person approved, still matching the inputs) skips
+            # only this autonomy test; the tool allowlist below and the compute budget stay.
+            if config.autonomy != Autonomy.RUN_SOLVERS and not room.run_grant_valid(
+                requester, case
+            ):
                 raise Denied(
                     f"{requester.id} may not run solvers (autonomy {config.autonomy.value})"
+                    + (
+                        "; the approval no longer matches the inputs"
+                        if requester.grant is not None
+                        else ""
+                    )
                 )
             for tool in optional_extension("workflow_required_tools", case) or []:
                 if not config.tool_allowed(tool):
@@ -183,6 +249,8 @@ class Conductor:
             require_extension(room, "artifact_presenters", tool, case=case)
             if isinstance(presenter, dict):
                 presenter = ArtifactProjection.model_validate(presenter)
+        run_meta = run_meta_for(room, case, declared_mode.get() or (context or {}).get("mode"))
+        deadline = run_deadline_s(tier, run_meta, self.run_ceiling_s)
         info = self.registry.tools.get(tool)
         manifest = RunManifest(
             tool=tool,
@@ -195,7 +263,8 @@ class Conductor:
             arguments=arguments,
             spec_revision=digest(snapshot),
             input_revisions=snapshot,
-            context=context or {},
+            # a declared deadline travels in the digested manifest, so the referee can trust it
+            context={**(context or {}), "deadlineS": deadline} if run_meta else (context or {}),
             outputs={k: v for k, v in (rename or {}).items() if k != v},
         )
         mdigest = digest(manifest)
@@ -209,8 +278,12 @@ class Conductor:
             self._run_requester(room, case, tool, requester, dependency, tier, estimate_s),
             estimate_s=estimate_s,
             input_revisions=snapshot,
+            job_id=current_job.get(),
         )
-        deadline = TIER_DEADLINE_S.get(tier, 30.0)
+        if (note := job_run_sink.get()) is not None:
+            note(rid)
+        # The solver sees who asked: the requesting agent, not always "conductor".
+        caller = requester.id if requester.kind == "personal_agent" else "conductor"
         if requester.kind == "personal_agent" and tier < 2:
             deadline = min(deadline, room.agent_config(requester.id).compute_budget_s)
         try:
@@ -223,16 +296,25 @@ class Conductor:
                     arguments,
                     deadline_s=deadline,
                     room=room.id,
-                    caller="conductor",
+                    caller=caller,
                     correlation_id=f"call-{rid}",
                     progress=progress,
                 )
+        except asyncio.CancelledError:
+            # A cancelled job must not leave its run active. Re-raise so the task ends.
+            with contextlib.suppress(RoomError):
+                room.fail_run(CONDUCTOR, rid, "cancelled", "cancelled", [])
+            raise
         except SolverTimeout as exc:
             room.fail_run(CONDUCTOR, rid, "timeout", exc.message, [])
             return rid, None, [], exc.message
         except SolverError as exc:
             room.fail_run(CONDUCTOR, rid, "failed", exc.message, [])
             return rid, None, [], exc.message
+        except Exception as exc:  # anything else must not leave the run active either
+            with contextlib.suppress(RoomError):
+                room.fail_run(CONDUCTOR, rid, "failed", error_text(exc), [])
+            raise
         env = call.envelope
         prepared, blobs = prepare_outputs(env, presenter)
         for ref, payload in blobs.values():
