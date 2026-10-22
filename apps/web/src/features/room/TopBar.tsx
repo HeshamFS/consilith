@@ -2,6 +2,8 @@ import type { CSSProperties } from "react";
 import { Link } from "react-router";
 import { ThemeSwitch } from "@/shared/theme/ThemeSwitch";
 import { Avatar, Icon, type IconName, Mark, seatVar } from "@/shared/ui";
+import { agentModelLabel } from "./agentLabel";
+import { studioIcon } from "./Deck";
 import { agentOf } from "./describe";
 import type { Connection } from "./feed";
 import s from "./room.module.css";
@@ -41,20 +43,22 @@ export function TopBar({
   );
   const open = Math.max(0, 4 - people.length);
   const seats = people.map((p) => seatVar(p.color));
-  const studio =
-    doc.room.capabilities?.find((c) => c.id === doc.room.activeCase)?.label ?? doc.room.activeCase;
+  const active = doc.room.capabilities?.find((c) => c.id === doc.room.activeCase);
+  const studio = active?.label ?? doc.room.activeCase;
   const roomAgentsOn = ROOM_AGENTS.filter((r) => doc.room.agents[r.id] || r.id === "referee");
 
   return (
     <header className={s.top}>
       <Link to="/" className={s.title} aria-label={`${doc.room.title}: back to your rooms`}>
-        <Mark size={36} seats={seats} label={`Room mark: ${people.length} of 4 seats filled`} />
+        <Mark size={30} seats={seats} label={`Room mark: ${people.length} of 4 seats filled`} />
         <span className={s.titleText}>
           <span className={s.roomName}>{doc.room.title}</span>
           <span className={s.roomMeta}>
             <span className={s.liveDot} data-state={connection} aria-hidden />
+            <span>{CONN_TEXT[connection]} ·</span>
+            {active ? <Icon name={studioIcon(active)} size={13} /> : null}
             <span>
-              {CONN_TEXT[connection]} · {studio} · {people.length} of 4 seats
+              {studio} · {people.length} of 4 seats
             </span>
           </span>
         </span>
@@ -71,10 +75,13 @@ export function TopBar({
               className={s.person}
               data-me={p.id === me || undefined}
               style={{ "--c": seatVar(p.color) } as CSSProperties}
-              title={a?.statusDetail || undefined}
+              title={
+                [agentModelLabel(doc, p.id), a?.statusDetail].filter(Boolean).join(" · ") ||
+                undefined
+              }
             >
-              <Avatar name={p.name || p.id} color={p.color} size={30} />
-              <Icon name={a?.brought ? "a2a" : "agent"} size={18} accent={seatVar(p.color)} />
+              <Avatar name={p.name || p.id} color={p.color} size={24} />
+              <Icon name={a?.brought ? "a2a" : "agent"} size={15} accent={seatVar(p.color)} />
               <span className={s.personText}>
                 <span className={s.personName}>
                   {p.name || p.id}
@@ -112,7 +119,7 @@ export function TopBar({
                 data-on={a ? true : undefined}
                 title={`${r.id}${a ? ` · ${a.status}` : ""}`}
               >
-                <Icon name={r.icon} size={18} />
+                <Icon name={r.icon} size={16} />
               </span>
             );
           })}
@@ -148,7 +155,7 @@ export function TopBar({
           aria-label="Invite someone"
           onClick={onInvite}
         >
-          <Icon name="invite" size={18} />
+          <Icon name="invite" size={16} />
           <span className={s.hideOnPhone}>Invite</span>
         </button>
       </div>

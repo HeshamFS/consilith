@@ -1,0 +1,929 @@
+/* Agent-to-agent threads, compact. Only Consilith tokens (shared/theme/tokens.css), light and
+   dark, with the seat colours as --c per bubble. Everything sizes from the container, so the panel
+   reads the same in the wide Agents-at-work page and in a narrow sheet. Bubbles are drawn like the
+   chat's agent-to-agent lines: the viewer's side on the right, each filled in its owner's seat. */
+
+.panel {
+  container-type: inline-size;
+  container-name: peers;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.panelHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.panelTitle {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font: 600 14px / 20px var(--font-ui);
+}
+
+.count {
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--ink-2);
+  font: 500 10.5px / 16px var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.lede {
+  margin: -4px 0 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.small {
+  min-width: 0;
+  color: var(--ink-3);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+/* --- list and thread side by side, or stacked when narrow ------------------------------- */
+
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+@container peers (min-width: 640px) {
+  .split:has(.list) {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+}
+
+.list {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  padding: 0 0 2px;
+  list-style: none;
+  overflow-x: auto;
+}
+
+@container peers (min-width: 640px) {
+  .list {
+    flex-direction: column;
+    overflow: visible;
+  }
+}
+
+.list > li {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+@container peers (min-width: 640px) {
+  .list > li {
+    flex: 1 1 auto;
+  }
+}
+
+.item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 180px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.18s var(--ease),
+    background 0.18s var(--ease);
+}
+
+.item:hover {
+  border-color: var(--line-strong);
+}
+
+.item[data-active="1"] {
+  border-color: color-mix(in srgb, var(--c) 55%, var(--line));
+  background: color-mix(in srgb, var(--c) 7%, var(--surface));
+}
+
+.itemDots {
+  display: inline-flex;
+}
+
+.itemDots i {
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid var(--surface);
+  border-radius: 50%;
+  background: var(--c);
+}
+
+.itemDots i + i {
+  margin-left: -3px;
+}
+
+.item[data-state="replying"] .itemDots i:last-child {
+  animation: peerBeat 1.4s var(--ease) infinite;
+}
+
+.itemText {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.stateTag {
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--ink-2);
+  font: 500 10px / 14px var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.stateTag[data-state="replying"] {
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+
+.stateTag[data-state="capped"],
+.stateTag[data-state="paused"],
+.stateTag[data-state="stopped"] {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+/* --- one thread ------------------------------------------------------------------------- */
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.threadHead {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.parties {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(28px, 64px) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.party {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.party:last-child {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+.party:last-child .partyText {
+  align-items: flex-end;
+}
+
+.partyAvatar {
+  position: relative;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1.5px solid var(--c);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--c) 12%, var(--surface));
+}
+
+.party[data-live="1"] .partyAvatar::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border: 1.5px solid var(--c);
+  border-radius: 50%;
+  opacity: 0;
+  animation: peerRing 1.8s var(--ease) infinite;
+}
+
+.partyText {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 0;
+}
+
+/* the wire between the two agents: a quiet line, with a pulse travelling to whoever is replying */
+.wire {
+  position: relative;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--line-strong);
+}
+
+.wireLine {
+  position: absolute;
+  inset: 0;
+}
+
+.wire[data-live="1"] .wireLine::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, var(--seat-blue), transparent);
+  animation: peerTravel 1.3s var(--ease) infinite;
+}
+
+.wire[data-live="1"][data-to="left"] .wireLine::after {
+  animation-direction: reverse;
+}
+
+.meters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+}
+
+.meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.meterText {
+  color: var(--ink-3);
+  font: 10.5px / 14px var(--font-mono);
+}
+
+.hops {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.hop {
+  width: 12px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--surface-3);
+  transition: background 0.3s var(--ease);
+}
+
+.hop[data-on="1"] {
+  background: var(--ink-2);
+}
+
+.hop[data-cap="1"] {
+  background: var(--warn-fg);
+}
+
+.bar {
+  display: block;
+  width: 56px;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--surface-3);
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--ink-2);
+  transition: width 0.4s var(--ease);
+}
+
+.bar[data-cap="1"] .fill {
+  background: var(--warn-fg);
+}
+
+.privacy {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 0 auto;
+  color: var(--ink-3);
+  font-size: 11px;
+}
+
+/* --- conversation ------------------------------------------------------------------------ */
+
+.convo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  min-width: 0;
+}
+
+.row[data-side="right"] {
+  justify-content: flex-end;
+}
+
+/* The article holds the byline, the filled bubble and the footer; only the text is coloured. */
+.bubble {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+  max-width: min(86%, 520px);
+}
+
+.row[data-side="right"] .bubble {
+  align-items: flex-end;
+}
+
+.byline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 0 2px;
+}
+
+.bylineName {
+  color: var(--ink-2);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.bylineFor {
+  color: var(--ink-3);
+  font-size: 11px;
+}
+
+.kind {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--ink-2);
+  font: 500 9.5px / 16px var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.text {
+  margin: 0;
+  padding: 7px 11px;
+  border-radius: 12px 12px 12px 4px;
+  background: var(--c, var(--ink-3));
+  color: var(--on-accent);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.row[data-side="right"] .text {
+  border-radius: 12px 12px 4px 12px;
+}
+
+.refs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.refs li {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font: 10.5px / 16px var(--font-mono);
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 5px;
+  padding: 0 2px;
+  color: var(--ink-3);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+.ghost {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px dashed color-mix(in srgb, var(--c) 50%, var(--line));
+  border-radius: 12px;
+  background: transparent;
+}
+
+.ghostText {
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+.dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.dots i {
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--c, var(--ink-2));
+  animation: peerDot 1.2s var(--ease) infinite;
+}
+
+.dots i:nth-child(2) {
+  animation-delay: 0.16s;
+}
+
+.dots i:nth-child(3) {
+  animation-delay: 0.32s;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+/* a proposal made in a peer turn, inline under the answer that came with it */
+.proposal {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.proposal[data-status="accepted"] {
+  border-color: var(--ok-fg);
+}
+
+.proposal[data-status="declined"],
+.proposal[data-status="failed"] {
+  border-color: var(--bad-fg);
+}
+
+.proposalText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.link {
+  padding: 2px 4px;
+  border: 0;
+  background: none;
+  color: var(--seat-blue);
+  font: 600 12px / 16px var(--font-ui);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* --- calm notices ----------------------------------------------------------------------- */
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--wait-bg);
+  color: var(--wait-fg);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.notice svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.notice[data-code="capped"],
+.notice[data-code="paused"],
+.notice[data-code="declined"],
+.notice[data-code="undeliverable"] {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+.notice[data-code="refused"] {
+  background: var(--bad-bg);
+  color: var(--bad-fg);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.ghostButton {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--ink);
+  font: 500 12px / 16px var(--font-ui);
+  cursor: pointer;
+}
+
+.ghostButton:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.ghostButton:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* --- settings: three compact switch rows in one card ------------------------------------- */
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.switchRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.switchRow:last-of-type {
+  border-bottom: 0;
+}
+
+.switchText {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.switchText .strong {
+  white-space: normal;
+}
+
+.switch {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 18px;
+  padding: 2px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  cursor: pointer;
+  transition: background 0.2s var(--ease);
+}
+
+.knob {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--ink-2);
+  transition:
+    transform 0.2s var(--ease),
+    background 0.2s var(--ease);
+}
+
+.switch[data-on="1"] {
+  border-color: var(--ok-fg);
+  background: var(--ok-bg);
+}
+
+.switch[data-on="1"] .knob {
+  transform: translateX(14px);
+  background: var(--ok-fg);
+}
+
+.switch:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* --- empty ------------------------------------------------------------------------------ */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 14px;
+  color: var(--ink-2);
+}
+
+.emptyTitle {
+  margin: 0;
+  color: var(--ink);
+  font: 600 13px / 18px var(--font-ui);
+}
+
+/* --- the strip in the chat ------------------------------------------------------------- */
+
+.strip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.chip {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 6px 12px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.2s var(--ease),
+    background 0.2s var(--ease);
+}
+
+.chip:hover {
+  background: var(--surface-3);
+}
+
+.chip[data-state="replying"] {
+  border-color: var(--ok-fg);
+}
+
+.chipLegacy {
+  display: inline-flex;
+  width: auto;
+  grid-template-columns: none;
+}
+
+.pair {
+  display: inline-flex;
+}
+
+.pair > i {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--c);
+  border: 2px solid var(--surface-2);
+}
+
+.pair > i + i {
+  margin-left: -5px;
+}
+
+.chipText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.live {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--live);
+  animation: peerBeat 1.4s var(--ease) infinite;
+}
+
+.chipTail {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* --- motion ----------------------------------------------------------------------------- */
+
+.rise {
+  animation: peerRise 0.42s var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+
+.settle {
+  animation: peerSettle 0.3s var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 28ms);
+}
+
+@keyframes peerRise {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes peerSettle {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes peerDot {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+@keyframes peerBeat {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+}
+
+@keyframes peerRing {
+  0% {
+    opacity: 0.7;
+    transform: scale(0.92);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.25);
+  }
+}
+
+@keyframes peerTravel {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(260%);
+  }
+}
+
+/* A still page for anyone who asked for less motion: nothing loops, nothing slides in. */
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .settle,
+  .dots i,
+  .live,
+  .item[data-state="replying"] .itemDot,
+  .party[data-live="1"] .partyAvatar::after,
+  .wire[data-live="1"] .wireLine::after {
+    animation: none;
+  }
+
+  .wire[data-live="1"] .wireLine::after {
+    left: 30%;
+    opacity: 0.8;
+  }
+
+  .party[data-live="1"] .partyAvatar::after {
+    opacity: 0.5;
+    transform: scale(1.1);
+  }
+
+  .dots i {
+    opacity: 0.8;
+  }
+
+  .item,
+  .chip,
+  .hop,
+  .fill,
+  .switch,
+  .knob {
+    transition: none;
+  }
+}
+
+/* The chat sheet is 460 px wide: tighten the thread so nothing wraps awkwardly there. */
+@container peers (max-width: 520px) {
+  .thread {
+    padding: 12px;
+  }
+
+  .parties {
+    grid-template-columns: minmax(0, 1fr) minmax(24px, 44px) minmax(0, 1fr);
+  }
+
+  .partyAvatar {
+    width: 36px;
+    height: 36px;
+  }
+
+  .bubble {
+    max-width: 100%;
+  }
+
+  .panelTitle {
+    font-size: 22px;
+  }
+}

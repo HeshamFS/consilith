@@ -2,9 +2,11 @@ import { type FormEvent, type KeyboardEvent, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { useAuth } from "@/features/auth";
 import {
+  CAPABILITIES,
   capabilityRoles,
   loadCapabilities,
   OPEN_STUDIOS,
+  PLUGINS,
   roleInfo,
   STUDIO_LANES,
   STUDIOS,
@@ -387,6 +389,8 @@ export function NewRoomPage() {
             </p>
           </section>
 
+          <StudioBrings studio={studio} />
+
           <section className={s.panel} aria-labelledby="starts-h">
             <h2 id="starts-h" className={s.panelHead}>
               <Icon name="agent" size={18} accent={me} />
@@ -413,6 +417,67 @@ export function NewRoomPage() {
         </aside>
       </div>
     </WorkspaceShell>
+  );
+}
+
+/** What the chosen studio brings into the room: the solver tools its MCP servers expose, the skills
+ * its agents read, and the knowledge it ships, all from the plugin's own descriptor. */
+function StudioBrings({ studio }: { studio: StudioId }) {
+  const plugin = PLUGINS[CAPABILITIES[studio]?.pluginId ?? ""];
+  if (!plugin) return null;
+  const tools = plugin.tools;
+  const skills = plugin.skills;
+  const knowledge = plugin.knowledge ?? [];
+  return (
+    <section className={s.panel} aria-labelledby="brings-h">
+      <h2 id="brings-h" className={s.panelHead}>
+        <Icon name={STUDIO_ICON[studio]?.icon ?? "solvers"} size={18} />
+        What this studio brings
+      </h2>
+      <p className={s.small}>
+        From the {plugin.title} plugin, v{plugin.version}.
+      </p>
+      <dl className={s.brings}>
+        <div>
+          <dt>
+            <Icon name="solvers" size={14} /> MCP tools <span>{tools.length}</span>
+          </dt>
+          <dd>
+            {tools.map((tool) => (
+              <code key={tool} className={s.tag}>
+                {tool}
+              </code>
+            ))}
+          </dd>
+        </div>
+        <div>
+          <dt>
+            <Icon name="verified" size={14} /> Skills <span>{skills.length}</span>
+          </dt>
+          <dd>
+            {skills.map((skill) => (
+              <span key={skill.id} className={s.tag} title={skill.description}>
+                {skill.id}
+              </span>
+            ))}
+          </dd>
+        </div>
+        {knowledge.length ? (
+          <div>
+            <dt>
+              <Icon name="ledger" size={14} /> Knowledge <span>{knowledge.length}</span>
+            </dt>
+            <dd>
+              {knowledge.map((item) => (
+                <span key={item.id} className={s.tag}>
+                  {item.title}
+                </span>
+              ))}
+            </dd>
+          </div>
+        ) : null}
+      </dl>
+    </section>
   );
 }
 

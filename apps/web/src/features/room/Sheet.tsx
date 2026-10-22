@@ -1,13 +1,15 @@
-import { type ReactNode, useEffect, useId, useRef } from "react";
+import { type ReactNode, type RefObject, useEffect, useId, useRef } from "react";
 import s from "./room.module.css";
 
 /** A right-hand sheet over the room (full screen on phones). Escape and the scrim close it;
- * focus moves in on open and returns to the opener on close. */
+ * focus moves in on open and returns to the opener on close. ``docked``: a drawer beside the
+ * canvas instead of over it (no scrim, not modal), so the room stays in view and usable. */
 export function Sheet({
   title,
   sub,
   icon,
   narrow = false,
+  docked = false,
   onClose,
   children,
 }: {
@@ -15,11 +17,12 @@ export function Sheet({
   sub?: ReactNode;
   icon?: ReactNode;
   narrow?: boolean;
+  docked?: boolean;
   onClose: () => void;
   children: ReactNode;
 }) {
   const id = useId();
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLElement>(null);
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
     ref.current?.focus();
@@ -32,6 +35,46 @@ export function Sheet({
       opener?.focus?.();
     };
   }, [onClose]);
+  const inner = (
+    <>
+      <header className={s.sheetHead}>
+        {icon}
+        <div style={{ minWidth: 0 }}>
+          <h2 id={id} className={s.sheetTitle}>
+            {title}
+          </h2>
+          {sub ? <p className={s.sheetSub}>{sub}</p> : null}
+        </div>
+        <button type="button" className={s.close} aria-label="Close" onClick={onClose}>
+          <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden>
+            <path
+              d="M6 6l12 12M18 6L6 18"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      </header>
+      {/* biome-ignore lint/a11y/noNoninteractiveTabindex: the scroll region needs a keyboard target even when its content is read-only */}
+      <section className={s.sheetBody} aria-labelledby={id} tabIndex={0}>
+        {children}
+      </section>
+    </>
+  );
+  const cls = `${s.sheet} ${narrow ? s.sheetNarrow : ""} ${s.floating}`;
+  if (docked)
+    return (
+      <aside
+        ref={ref}
+        aria-labelledby={id}
+        tabIndex={-1}
+        data-docked="true"
+        className={`${cls} ${s.sheetDocked}`}
+      >
+        {inner}
+      </aside>
+    );
   return (
     <>
       <button
@@ -42,36 +85,14 @@ export function Sheet({
         onClick={onClose}
       />
       <div
-        ref={ref}
+        ref={ref as RefObject<HTMLDivElement>}
         role="dialog"
         aria-modal="true"
         aria-labelledby={id}
         tabIndex={-1}
-        className={`${s.sheet} ${narrow ? s.sheetNarrow : ""} ${s.floating}`}
+        className={cls}
       >
-        <header className={s.sheetHead}>
-          {icon}
-          <div style={{ minWidth: 0 }}>
-            <h2 id={id} className={s.sheetTitle}>
-              {title}
-            </h2>
-            {sub ? <p className={s.sheetSub}>{sub}</p> : null}
-          </div>
-          <button type="button" className={s.close} aria-label="Close" onClick={onClose}>
-            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden>
-              <path
-                d="M6 6l12 12M18 6L6 18"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-        </header>
-        {/* biome-ignore lint/a11y/noNoninteractiveTabindex: the scroll region needs a keyboard target even when its content is read-only */}
-        <section className={s.sheetBody} aria-labelledby={id} tabIndex={0}>
-          {children}
-        </section>
+        {inner}
       </div>
     </>
   );

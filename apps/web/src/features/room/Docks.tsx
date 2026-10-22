@@ -34,7 +34,7 @@ export function Docks({
     <>
       <div className={s.status}>
         <span className={`${s.statusChip} ${s.floating}`}>
-          <Icon name="solvers" size={16} />
+          <Icon name="solvers" size={14} />
           {running
             ? `${running} solve${running === 1 ? "" : "s"} running`
             : solvers
@@ -44,15 +44,12 @@ export function Docks({
       </div>
       <section className={`${s.waiting} ${s.floating}`} aria-label="Waiting on you">
         <button type="button" className={s.waitingHead} onClick={onWaiting}>
-          <Icon name="proposal" size={18} />
+          <Icon name="proposal" size={14} />
           Waiting on you <span className={s.count}>{waiting}</span>
-          <span style={{ marginLeft: "auto" }} aria-hidden>
-            ›
-          </span>
         </button>
         {last ? (
           <button type="button" className={`${s.waitingLast} ${s.plain}`} onClick={onLog}>
-            <Icon name="log" size={15} />
+            <Icon name="log" size={13} />
             <span>{describeLog(last, doc)}</span>
             <span className={s.ago}>{ago(last.ts)}</span>
           </button>

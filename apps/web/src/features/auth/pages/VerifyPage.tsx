@@ -48,6 +48,13 @@ function useRedeem(param: string, redeem: (v: string) => Promise<SignedIn>) {
   return { error, done };
 }
 
+/** The server's message as a sentence: it already says to ask for a new link. */
+function sentence(text: string): string {
+  const s = text.trim();
+  const capital = s.charAt(0).toUpperCase() + s.slice(1);
+  return /[.!?]$/.test(capital) ? capital : `${capital}.`;
+}
+
 function Shell({ error }: { error: string | null }) {
   return (
     <div className={s.page}>
@@ -65,9 +72,7 @@ function Shell({ error }: { error: string | null }) {
               <h1 className={s.title} style={{ fontSize: 32 }}>
                 That link did not work.
               </h1>
-              <p className={s.sub}>
-                {error} Ask for a new one; each link works once, for 15 minutes.
-              </p>
+              <p className={s.sub}>{sentence(error)} Each link works once, for 15 minutes.</p>
               <Link to="/signin">Back to sign in</Link>
             </>
           ) : (

@@ -109,10 +109,11 @@ export class RoomConnection {
   private path(p: string) {
     return `/rooms/${encodeURIComponent(this.room)}${p}`;
   }
-  claim = (c: CaseId, lane: string) =>
-    api.post<{ seq: number }>(this.path(`/lanes/${c}/${lane}/claim`));
-  release = (c: CaseId, lane: string) =>
-    api.post<{ seq: number }>(this.path(`/lanes/${c}/${lane}/release`));
+  private lane(c: CaseId, lane: string, action: "claim" | "release") {
+    return this.path(`/lanes/${encodeURIComponent(c)}/${encodeURIComponent(lane)}/${action}`);
+  }
+  claim = (c: CaseId, lane: string) => api.post<{ seq: number }>(this.lane(c, lane, "claim"));
+  release = (c: CaseId, lane: string) => api.post<{ seq: number }>(this.lane(c, lane, "release"));
   editTwin = (patch: PatchOp[], reason: string) =>
     api.post<{ seq: number }>(this.path("/twin"), { patch, reason, opId: crypto.randomUUID() });
   decide = (proposal: string, accept: boolean, reason: string) =>
@@ -133,7 +134,7 @@ export class RoomConnection {
       this.path("/invites"),
       email ? { email } : {},
     );
-  solve = (c: CaseId) => api.post(this.path(`/solve/${c}`), {});
+  solve = (c: CaseId) => api.post(this.path(`/solve/${encodeURIComponent(c)}`), {});
   intake = (body: { kind?: string; text?: string }) =>
     api.post<
       | { supported: true; case: CaseId; label: string; grammar: string }
@@ -143,7 +144,7 @@ export class RoomConnection {
     api.post(this.path(`/surfaces/${encodeURIComponent(c)}/compose`), { request, preview });
   surfaces = (c: CaseId, as?: string) =>
     api.get<{ viewer: string; messages: A2UIMessage[] }>(
-      this.path(`/surfaces/${c}${as ? `?as=${encodeURIComponent(as)}` : ""}`),
+      this.path(`/surfaces/${encodeURIComponent(c)}${as ? `?as=${encodeURIComponent(as)}` : ""}`),
     );
   memory = () =>
     api.get<{
@@ -170,9 +171,10 @@ export class RoomConnection {
   };
 
   private lastPresence = 0;
+  /** Your pointer and focus for the others, at most about 15 times a second. */
   presence = (p: { cursor?: number[]; focus?: string; case?: string }) => {
     const now = Date.now();
-    if (now - this.lastPresence < 250) return;
+    if (now - this.lastPresence < 66) return;
     this.lastPresence = now;
     void api.post(this.path("/presence"), p).catch(() => undefined);
   };

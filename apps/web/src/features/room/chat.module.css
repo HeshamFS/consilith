@@ -1,8 +1,11 @@
+/* The chat fills the drawer: the log is the only scroller; the approvals above and the picker
+   and composer below stay in place, so nothing renders under the composer. */
 .wrap {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  min-height: 100%;
+  gap: 8px;
+  height: 100%;
+  min-height: 0;
 }
 
 .h3 {
@@ -25,11 +28,14 @@
 }
 
 .approvals {
+  flex: none;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px;
-  border-radius: 14px;
+  gap: 6px;
+  max-height: 40%;
+  overflow-y: auto;
+  padding: 8px;
+  border-radius: 12px;
   background: var(--wait-bg);
   border: 1px solid var(--wait-fg);
 }
@@ -37,15 +43,15 @@
 .approval {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 4px;
+  padding: 6px 8px;
   border-radius: 10px;
   background: var(--surface);
 }
 
 .msg {
   margin: 0;
-  font-size: 13.5px;
+  font-size: 12.5px;
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -56,14 +62,14 @@
 }
 
 .choice {
-  height: 36px;
-  padding: 0 14px;
-  border-radius: 9px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 7px;
   border: 1px solid var(--line-strong);
   background: var(--surface);
   color: var(--ink);
   font: inherit;
-  font-size: 13.5px;
+  font-size: 12px;
   cursor: pointer;
 }
 
@@ -76,53 +82,369 @@
 .reason input,
 .composer input {
   width: 100%;
-  height: 42px;
-  border-radius: 10px;
+  height: 34px;
+  border-radius: 9px;
   border: 1px solid var(--line-strong);
   background: var(--surface-2);
   color: var(--ink);
   font: inherit;
-  font-size: 14px;
-  padding: 0 12px;
+  font-size: 13px;
+  padding: 0 10px;
 }
 
 .log {
-  flex: 1;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-height: 120px;
+  gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 8px;
 }
 
-.me,
-.agent {
-  max-width: 85%;
-  padding: 10px 12px;
-  border-radius: 14px;
-  font-size: 14px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+.foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.turn {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .me {
   align-self: flex-end;
-  color: var(--on-accent);
+  max-width: 80%;
+  padding: 7px 11px;
+  border-radius: 12px;
   border-bottom-right-radius: 4px;
-}
-
-.agent {
-  align-self: flex-start;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-bottom-left-radius: 4px;
+  color: var(--on-accent);
+  font-size: 13.5px;
+  line-height: 19px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .composer {
-  position: sticky;
-  bottom: 0;
   display: flex;
-  gap: 8px;
-  padding-top: 8px;
+  align-items: center;
+  gap: 6px;
+}
+
+.card {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 14px;
   background: var(--surface);
+  border: 1px solid var(--line);
+  container-type: inline-size;
+}
+
+.card[data-state="error"] {
+  border-color: var(--bad-fg);
+}
+
+.card[data-state="superseded"] {
+  opacity: 0.65;
+}
+
+.cardHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.cardTitle {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.attribution {
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+
+.chip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 10px;
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.facts > div {
+  display: contents;
+}
+
+.facts dt {
+  color: var(--ink-2);
+}
+
+.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.notice {
+  align-self: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--wait-bg);
+  border: 1px solid var(--wait-fg);
+}
+
+.fix {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 9px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.progress {
+  width: 100%;
+}
+
+.peerStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.peerChip {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+/* Confirm cards: title, why, note, inputs, buttons, then the plumbing behind "Details". */
+.why,
+.note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.note {
+  color: var(--ink-3);
+}
+
+.eyebrow {
+  display: block;
+  font: 500 11px / 1.4 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.reads {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.details {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.details summary {
+  cursor: pointer;
+  padding-block: 2px;
+  font: 500 11px / 1.4 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.details .facts {
+  margin-top: 4px;
+}
+
+.approvalBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: var(--wait-bg);
+  border: 1px solid var(--wait-fg);
+}
+
+/* The last message stops above the composer, never under it. */
+.end {
+  scroll-margin-bottom: 72px;
+}
+
+/* Who answers in a turn, and the API and model it runs on, aligned with the reply's prose. */
+.byline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding-left: 28px;
+  font-size: 11px;
+  line-height: 16px;
+}
+.bylineName {
+  color: var(--accent, var(--ink));
+  font-weight: 600;
+}
+
+/* A turn the room started when a run settled: a quiet notice, not a message from the person. */
+.auto {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  align-self: center;
+  margin: 0;
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  color: var(--ink-3);
+  font: 500 11.5px / 16px var(--font-ui);
+}
+
+/* A confirm card as one row: badge, title, state; small buttons; details on request. */
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.row[data-state="open"] {
+  border-color: color-mix(in srgb, var(--accent, var(--ink)) 45%, var(--line));
+}
+.row[data-state="superseded"] {
+  opacity: 0.65;
+}
+.rowHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.rowBadge {
+  flex: none;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  font: 500 10px / 16px var(--font-mono);
+  color: var(--ink-2);
+}
+.rowTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font: 600 12.5px / 18px var(--font-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row .chip {
+  flex: none;
+  padding: 0 7px;
+  font-size: 10.5px;
+  line-height: 18px;
+}
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.mini {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 7px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font: 500 12px / 1 var(--font-ui);
+  cursor: pointer;
+}
+.mini[data-tone="primary"] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--ink-inverse);
+}
+.mini:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.link {
+  height: 24px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: 500 11.5px / 1 var(--font-ui);
+  cursor: pointer;
+}
+.link:hover {
+  color: var(--ink);
+}
+.rowDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+
+/* A job named in the agent's prose: a small run chip; the id is in its title. */
+.runChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  font: 500 11px / 16px var(--font-mono);
+  color: var(--ink-2);
+  vertical-align: 1px;
 }

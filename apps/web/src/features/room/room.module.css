@@ -53,7 +53,7 @@
 
 .roomName {
   font-weight: 600;
-  font-size: 15px;
+  font-size: 14px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -94,8 +94,8 @@
 .presence {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px;
+  gap: 4px;
+  padding: 4px;
   border-radius: 999px;
   min-width: 0;
   flex: 0 1 auto;
@@ -106,11 +106,11 @@
 .person {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 12px 4px 4px;
+  gap: 6px;
+  padding: 3px 10px 3px 3px;
   border-radius: 999px;
   background: var(--surface-2);
-  border: 2px solid transparent;
+  border: 1.5px solid transparent;
   flex: none;
   font: inherit;
   color: inherit;
@@ -129,13 +129,13 @@
 }
 
 .personName {
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   white-space: nowrap;
 }
 
 .personStatus {
-  font-size: 11px;
+  font-size: 10.5px;
   color: var(--ink-2);
   white-space: nowrap;
 }
@@ -145,8 +145,8 @@
 }
 
 .openSeat {
-  width: 30px;
-  height: 30px;
+  width: 24px;
+  height: 24px;
   flex: none;
   border-radius: 999px;
   border: 1.5px dashed var(--ink-3);
@@ -175,8 +175,8 @@
 .roomAgents {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 10px 0 4px;
+  gap: 8px;
+  padding: 0 8px 0 4px;
   flex: none;
 }
 
@@ -270,12 +270,12 @@
 .pill {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  height: 44px;
-  padding: 0 16px;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
   border-radius: 999px;
   font: inherit;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
@@ -298,17 +298,17 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 8px;
-  border-radius: 22px;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 16px;
 }
 
 .deckBtn {
   position: relative;
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   border: none;
-  border-radius: 12px;
+  border-radius: 10px;
   background: transparent;
   color: var(--ink);
   cursor: pointer;
@@ -350,8 +350,9 @@
 }
 
 .deckStart {
-  width: 48px;
-  height: 48px;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 4px;
   border-radius: 999px;
   background: var(--ink);
   color: var(--ink-inverse);
@@ -363,7 +364,7 @@
 }
 
 .deckSep {
-  width: 28px;
+  width: 22px;
   height: 1px;
   background: var(--line);
   margin: 4px 0;
@@ -389,13 +390,21 @@
 /* Canvas */
 .canvas {
   position: absolute;
-  inset: 88px 24px 112px 104px;
+  /* The canvas runs to the bottom of the window; the small docks float on it, and the bottom
+     padding lets the content scroll clear of them. */
+  inset: 88px 24px 0 104px;
   overflow: auto;
+  /* The canvas scrolls by wheel, touch and keys, with no visible bar. */
+  scrollbar-width: none;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 18px;
-  padding: 24px 0 40px;
+  padding: 24px 0 72px;
+}
+
+.canvas::-webkit-scrollbar {
+  display: none;
 }
 
 .canvas > * {
@@ -558,11 +567,11 @@
   cursor: not-allowed;
 }
 
-/* Bottom docks */
+/* Bottom docks: two small pills floating on the canvas, never a band that hides it. */
 .status {
   position: absolute;
   left: 20px;
-  bottom: 18px;
+  bottom: 14px;
   z-index: 15;
   display: flex;
   gap: 8px;
@@ -571,35 +580,39 @@
 .statusChip {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  height: 38px;
-  padding: 0 12px;
-  border-radius: 10px;
-  font-size: 12.5px;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--r-pill);
+  font-size: 12px;
   color: var(--ink-2);
 }
 
 .waiting {
   position: absolute;
   right: 20px;
-  bottom: 18px;
+  bottom: 14px;
   z-index: 15;
-  width: min(380px, calc(100vw - 40px));
-  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  max-width: min(420px, calc(100vw - 40px));
+  height: 28px;
+  border-radius: var(--r-pill);
   overflow: hidden;
 }
 
 .waitingHead {
-  width: 100%;
   display: flex;
+  flex: none;
   align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
+  gap: 6px;
+  height: 100%;
+  padding: 0 10px;
   border: none;
   background: transparent;
   color: var(--ink);
   font: inherit;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   text-align: left;
@@ -612,11 +625,14 @@
 
 .waitingLast {
   display: flex;
+  flex: 1 1 auto;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-top: 1px solid var(--line);
-  font-size: 13px;
+  gap: 6px;
+  min-width: 0;
+  height: 100%;
+  padding: 0 10px;
+  border-left: 1px solid var(--line);
+  font-size: 12px;
   color: var(--ink-2);
 }
 
@@ -648,12 +664,12 @@
 
 .sheet {
   position: fixed;
-  top: 16px;
-  right: 16px;
-  bottom: 16px;
-  width: min(800px, calc(100vw - 32px));
+  top: 14px;
+  right: 14px;
+  bottom: 14px;
+  width: min(720px, calc(100vw - 28px));
   z-index: 41;
-  border-radius: 22px;
+  border-radius: 18px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -661,35 +677,65 @@
 }
 
 .sheetNarrow {
-  width: min(460px, calc(100vw - 32px));
+  width: min(440px, calc(100vw - 28px));
 }
 
+/* The agent chat docks beside the canvas: below the top bar, no scrim, and the canvas and the
+   bottom-right docks make room for it, so the work and the conversation show together. */
+.sheetDocked {
+  top: 76px;
+  z-index: 25;
+  box-shadow: var(--shadow);
+}
+.canvas,
+.waiting {
+  transition: right 220ms var(--ease);
+}
+@media (min-width: 900px) {
+  .room[data-docked] .canvas {
+    right: calc(min(440px, 100vw - 28px) + 14px + 16px);
+  }
+  .room[data-docked] .waiting {
+    right: calc(min(440px, 100vw - 28px) + 14px + 20px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .canvas,
+  .waiting {
+    transition: none;
+  }
+}
+
+/* Sheet headers: a display title, one muted line, a small close button. */
 .sheetHead {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 20px 22px 16px;
+  gap: 12px;
+  padding: 14px 16px 12px 18px;
   border-bottom: 1px solid var(--line);
 }
 
 .sheetTitle {
   margin: 0;
-  font-size: 22px;
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 26px;
 }
 
 .sheetSub {
-  margin: 2px 0 0;
-  font-size: 13px;
+  margin: 1px 0 0;
+  font-size: 12.5px;
+  line-height: 18px;
   color: var(--ink-2);
 }
 
 .close {
   margin-left: auto;
-  width: 44px;
-  height: 44px;
+  width: 32px;
+  height: 32px;
   flex: none;
-  border-radius: 12px;
+  border-radius: 10px;
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--ink);
@@ -701,7 +747,7 @@
 .sheetBody {
   flex: 1;
   overflow: auto;
-  padding: 18px 22px 24px;
+  padding: 14px 18px 20px;
 }
 
 .logList {
@@ -714,11 +760,11 @@
 
 .logList li {
   display: grid;
-  grid-template-columns: 64px 64px minmax(0, 1fr);
+  grid-template-columns: 56px 56px minmax(0, 1fr);
   gap: 10px;
-  padding: 8px 0;
+  padding: 7px 0;
   border-bottom: 1px solid var(--line);
-  font-size: 13px;
+  font-size: 12.5px;
   align-items: baseline;
 }
 
@@ -916,8 +962,8 @@
     display: none;
   }
   .canvas {
-    inset: 108px 0 132px 0;
-    padding: 12px 12px 24px;
+    inset: 108px 0 72px 0;
+    padding: 12px 12px 56px;
   }
   .status {
     display: none;
@@ -926,7 +972,7 @@
     left: 8px;
     right: 8px;
     width: auto;
-    bottom: 72px;
+    bottom: 76px;
   }
   .waitingLast {
     display: none;

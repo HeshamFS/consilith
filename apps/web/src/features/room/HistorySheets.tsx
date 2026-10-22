@@ -1,6 +1,7 @@
 import { ResultValue } from "@/shared/a2ui/ResultValue";
 import { Icon, Stamp } from "@/shared/ui";
 import { ago, describeLog } from "./describe";
+import { PeerThreads } from "./PeerThreads";
 import s from "./room.module.css";
 import { Sheet } from "./Sheet";
 import type { LogEvent, RoomDoc, WiringEvent } from "./types";
@@ -21,7 +22,7 @@ export function LogSheet({
     <Sheet
       title="What just happened"
       sub="Every change in the room, newest first, with the protocol that carried it"
-      icon={<Icon name="log" size={28} />}
+      icon={<Icon name="log" size={20} />}
       narrow
       onClose={onClose}
     >
@@ -67,13 +68,47 @@ export function LogSheet({
   );
 }
 
+/** The agent threads in a sheet, for the strip in the chat to open: the 460 px width of a narrow
+ * sheet is the size the thread is designed for. */
+export function ThreadSheet({
+  doc,
+  me,
+  thread,
+  onOpenLane,
+  onClose,
+}: {
+  doc: RoomDoc;
+  me?: string | undefined;
+  thread?: string | undefined;
+  onOpenLane?: ((caseId: string, lane: string) => void) | undefined;
+  onClose: () => void;
+}) {
+  return (
+    <Sheet
+      title="Agent threads"
+      sub="Your agents talk through the conductor. Everyone in the room can read this."
+      icon={<Icon name="a2a" size={20} />}
+      narrow
+      onClose={onClose}
+    >
+      <PeerThreads
+        doc={doc}
+        me={me}
+        initialThread={thread}
+        onOpenLane={onOpenLane}
+        showSettings={false}
+      />
+    </Sheet>
+  );
+}
+
 export function LedgerSheet({ doc, onClose }: { doc: RoomDoc; onClose: () => void }) {
   const entries = Object.values(doc.ledger).sort((a, b) => b.ts - a.ts);
   return (
     <Sheet
       title="Ledger"
       sub="Results the referee checked and signed. Only these carry a verified stamp."
-      icon={<Icon name="ledger" size={28} />}
+      icon={<Icon name="ledger" size={20} />}
       narrow
       onClose={onClose}
     >
@@ -82,7 +117,7 @@ export function LedgerSheet({ doc, onClose }: { doc: RoomDoc; onClose: () => voi
           {entries.map((e) => (
             <li key={e.id}>
               <span className={s.ago}>{ago(e.ts)}</span>
-              <Stamp kind={e.subject.stamp} />
+              <Stamp kind={e.subject.stamp} iconOnly />
               <div>
                 {e.subject.quantity} · {e.subject.method}
                 <ResultValue result={e.subject} showStamp={false} />

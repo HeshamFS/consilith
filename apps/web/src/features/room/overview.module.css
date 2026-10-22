@@ -1,0 +1,331 @@
+/* Room overview: the room as a constellation (people outside, their agents between them and the
+   room, the room's own agents inside, live agent conversations as arcs), the lanes beside it, and
+   your other rooms as bubbles. Tokens only; light and dark. */
+
+.page {
+  display: grid;
+  gap: 20px;
+  width: min(1180px, 100%);
+}
+
+.head {
+  display: grid;
+  gap: 2px;
+}
+.eyebrow {
+  margin: 0;
+  color: var(--ink-3);
+  font: 500 var(--fs-label) / 16px var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 400;
+  line-height: 32px;
+}
+.sub {
+  margin: 0;
+  color: var(--ink-2);
+  font: var(--fs-small) / 20px var(--font-ui);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(260px, 1fr);
+  align-items: stretch;
+  gap: 16px;
+}
+
+/* The constellation */
+.stage {
+  position: relative;
+  min-height: 420px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background:
+    radial-gradient(
+      circle at 50% 50%,
+      color-mix(in srgb, var(--ink) 5%, transparent) 0 18%,
+      transparent 18.5%
+    ),
+    radial-gradient(
+      circle at 50% 50%,
+      transparent 0 34%,
+      color-mix(in srgb, var(--ink) 3%, transparent) 34.3% 34.8%,
+      transparent 35%
+    ),
+    var(--surface);
+}
+.edges {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.tie {
+  stroke: var(--c);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+.spoke {
+  stroke: color-mix(in srgb, var(--c) 45%, var(--line));
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+  vector-effect: non-scaling-stroke;
+}
+.talk {
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 6;
+  vector-effect: non-scaling-stroke;
+  animation: talk 1.2s linear infinite;
+}
+.talk[data-live="true"] {
+  stroke: var(--seat-blue);
+  stroke-width: 2;
+}
+@keyframes talk {
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+
+.centre,
+.roomAgent,
+.agent,
+.person {
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+.centre {
+  left: 50%;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.roomAgent {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+.agent {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  padding: 5px 8px;
+  border: 1px solid color-mix(in srgb, var(--c) 55%, var(--line));
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  white-space: nowrap;
+}
+.agentHead {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.agentName {
+  font: 600 12px / 16px var(--font-ui);
+}
+.model {
+  color: var(--ink-3);
+  font: 500 10.5px / 14px var(--font-mono);
+}
+.person {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+}
+.personName {
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+  background: var(--c);
+  color: var(--on-accent);
+  font: 600 11.5px / 16px var(--font-ui);
+  white-space: nowrap;
+}
+.legend {
+  position: absolute;
+  left: 14px;
+  bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--ink-3);
+  font: 11px / 16px var(--font-ui);
+}
+.legendLine {
+  width: 22px;
+  border-top: 1.5px dashed var(--ink-2);
+}
+
+/* Lanes */
+.lanes {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+.caps {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--ink-2);
+  font: 500 var(--fs-label) / 16px var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.lanesNote {
+  margin: 0;
+  color: var(--ink-3);
+  font: var(--fs-small) / 18px var(--font-ui);
+}
+.laneList {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lane {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--c, var(--line-strong));
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.lane[data-open] {
+  border-left-style: dashed;
+}
+.laneName {
+  overflow: hidden;
+  font: 600 13px / 18px var(--font-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.laneOwner {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink-2);
+  font: 12px / 16px var(--font-ui);
+  white-space: nowrap;
+}
+.laneBtn,
+.start {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong, var(--line));
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--ink);
+  font: 500 12px / 16px var(--font-ui);
+  cursor: pointer;
+}
+.laneBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.starts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.bad {
+  margin: 0;
+  color: var(--bad-fg, var(--ink));
+  font-size: 12.5px;
+}
+
+/* Your other rooms */
+.rooms {
+  display: grid;
+  gap: 10px;
+}
+.bubbles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 300px;
+  padding: 6px 14px 6px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+  transition:
+    border-color 160ms var(--ease),
+    transform 160ms var(--ease);
+}
+.bubble:hover {
+  border-color: var(--line-strong, var(--ink-3));
+  transform: translateY(-1px);
+}
+.bubbleText {
+  display: grid;
+  min-width: 0;
+}
+.bubbleTitle {
+  overflow: hidden;
+  font: 600 13px / 18px var(--font-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bubbleMeta {
+  color: var(--ink-3);
+  font: 11.5px / 16px var(--font-ui);
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .stage {
+    min-height: 360px;
+  }
+  .model {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .talk {
+    animation: none;
+  }
+  .bubble {
+    transition: none;
+  }
+}

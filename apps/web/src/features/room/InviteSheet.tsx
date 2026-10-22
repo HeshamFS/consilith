@@ -79,7 +79,7 @@ export function InviteSheet({
           ? `${open} seat${open === 1 ? "" : "s"} open. Each person picks their own role.`
           : "All four seats are taken."
       }
-      icon={<Icon name="invite" size={28} />}
+      icon={<Icon name="invite" size={20} />}
       narrow
       onClose={onClose}
     >

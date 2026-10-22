@@ -1,161 +1,202 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import {
   agentApi,
   cardUrlProblem,
+  loadProviders,
+  type ModelOption,
   type MyAgent,
-  PROVIDERS,
   type Provider,
+  type ProviderInfo,
 } from "@/features/agent/api";
+import { ConnectPanel } from "@/features/agent/ConnectPanel";
+import { ModelPicker } from "@/features/agent/ModelPicker";
 import { safeNext, useAuth } from "@/features/auth";
 import { AUTONOMY, type Autonomy, roleInfo } from "@/shared/domain/disciplines";
-import { ApiError } from "@/shared/http/client";
+import { ApiError, api } from "@/shared/http/client";
 import { Button, Icon, Info, seatVar, TextField, ui } from "@/shared/ui";
 import { OnboardingShell } from "@/shared/ui/Shell";
 import s from "./onboarding.module.css";
+
+/** What the server adds to the ChatGPT status and sign-in answers when several accounts are on. */
+type SiwcStatusExtra = {
+  signedIn: boolean;
+  signingIn?: boolean;
+  email?: string;
+  reason?: string;
+  multi?: boolean;
+  offerDisconnect?: boolean;
+  error?: { code?: string; message?: string } | null;
+};
+type SiwcLoginExtra = { url: string; authOrigins?: string[]; pasteCallback?: boolean };
+
+function addressIsTrusted(address: string, origins: string[]): boolean {
+  try {
+    const u = new URL(address);
+    return u.protocol === "https:" && origins.includes(u.origin);
+  } catch {
+    return false;
+  }
+}
 
 export function YourAgentPage({ settings = false }: { settings?: boolean }) {
   const { person } = useAuth();
   const navigate = useNavigate();
   const disc = roleInfo(person?.discipline ?? "");
   const [agent, setAgent] = useState<MyAgent | null>(null);
+  const [providers, setProviders] = useState<ProviderInfo[] | null>(null);
+  const [providersError, setProvidersError] = useState(false);
   const [kind, setKind] = useState<MyAgent["kind"]>("consilith");
-  const [provider, setProvider] = useState<Provider>("anthropic");
+  const [provider, setProvider] = useState<Provider>("scripted");
   const [model, setModel] = useState("");
   const [autonomy, setAutonomy] = useState<Autonomy>(disc.autonomy);
   const [cardUrl, setCardUrl] = useState("");
-  const [key, setKey] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [models, setModels] = useState<{ id: string; label: string }[] | null>(null);
+  const [models, setModels] = useState<ModelOption[] | null>(null);
   const [modelsNote, setModelsNote] = useState<string | null>(null);
+  const [siwc, setSiwc] = useState<{ signedIn: boolean; email?: string }>({ signedIn: false });
+  // Set only when the server runs several ChatGPT accounts (the operator flag is on).
+  const [multi, setMulti] = useState(false);
+  const [canPaste, setCanPaste] = useState(false);
+  const [offerDisconnect, setOfferDisconnect] = useState(false);
 
-  // The model list comes from the provider itself, for the key this session holds.
-  async function loadModels(p: Provider, newKey?: string) {
-    if (p === "scripted") return;
-    setModels(null);
-    setModelsNote("Loading models…");
-    try {
-      if (newKey) {
-        await agentApi.setKey(p, newKey);
-        setKey("");
-        setAgent((a) => (a ? { ...a, hasKey: true } : a));
-      }
-      const r = await agentApi.models(p);
-      setModels(r.models);
-      setModelsNote(r.models.length ? null : "This key lists no chat models.");
-      setModel((m) => (m && r.models.some((x) => x.id === m) ? m : (r.models[0]?.id ?? "")));
-    } catch (e) {
-      setModelsNote(
-        e instanceof ApiError && e.status === 409
-          ? "Paste your key to load the models."
-          : e instanceof ApiError
-            ? e.message
-            : "The models could not be loaded.",
-      );
-    }
-  }
+  const info = providers?.find((p) => p.id === provider);
+  const credential = agent?.credential?.byProvider[provider];
+  const connected = credential?.state === "ready";
 
-  // Sign in with ChatGPT: the local helper holds the session; the page only starts it and waits.
-  const [siwc, setSiwc] = useState<{ available: boolean; signedIn: boolean; email?: string }>({
-    available: false,
-    signedIn: false,
-  });
-  const [siwcBusy, setSiwcBusy] = useState(false);
+  const refreshAgent = useCallback(async () => {
+    setAgent(await agentApi.get());
+  }, []);
 
-  // The saved choice and the ChatGPT plan load together: a connected plan is the default
-  // whenever the saved provider cannot run (no model, or no key held for this session).
+  const loadProviderList = useCallback(() => {
+    setProvidersError(false);
+    loadProviders().then(
+      (list) => setProviders([...list]),
+      () => setProvidersError(true),
+    );
+  }, []);
+
+  // The registry, the saved choice and the ChatGPT account load together. The saved provider is
+  // kept as it is: nothing here switches a person to another provider on its own.
   useEffect(() => {
-    Promise.all([
-      agentApi.get(),
-      agentApi.siwcStatus().catch(() => ({ available: false, signedIn: false })),
-    ]).then(
+    loadProviderList();
+    Promise.all([agentApi.get(), agentApi.siwcStatus().catch(() => null)]).then(
       ([a, st]) => {
         setAgent(a);
-        setSiwc(st);
+        if (st) {
+          setSiwc({ signedIn: st.signedIn, ...(st.email ? { email: st.email } : {}) });
+          const extra = st as SiwcStatusExtra;
+          setMulti(extra.multi === true);
+          setOfferDisconnect(extra.offerDisconnect === true);
+        }
         setKind(a.kind);
-        const unusable = a.provider === "scripted" || (a.provider !== "siwc" && !a.hasKey);
-        setProvider(st.signedIn && unusable ? "siwc" : a.provider);
+        setProvider(a.provider);
         setModel(a.model ?? "");
         setAutonomy(a.autonomy);
         setCardUrl(a.cardUrl ?? "");
       },
       () => setAgent(null),
     );
-  }, []);
+  }, [loadProviderList]);
 
-  async function connectChatGPT() {
-    if (siwc.signedIn) {
-      setProvider("siwc");
+  // The model list comes from the provider itself, for the connection this session holds.
+  useEffect(() => {
+    setModels(null);
+    if (!info?.needsModel) {
+      setModelsNote(null);
       return;
     }
-    setSiwcBusy(true);
-    try {
-      const { url } = await agentApi.siwcLogin();
-      if (url) window.open(url, "_blank", "noopener");
-      for (let i = 0; i < 150; i++) {
-        await new Promise((r) => setTimeout(r, 2000));
-        const st = await agentApi.siwcStatus();
-        if (st.signedIn) {
-          setSiwc(st);
-          setProvider("siwc");
-          return;
-        }
-      }
-      setError("The ChatGPT sign-in did not finish. Try again.");
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "The ChatGPT sign-in could not start.");
-    } finally {
-      setSiwcBusy(false);
+    if (!connected) {
+      setModelsNote("connect first, then pick a model");
+      return;
     }
+    let live = true;
+    setModelsNote("Loading models…");
+    agentApi.models(provider).then(
+      (r) => {
+        if (!live) return;
+        setModels(r.models);
+        setModelsNote(r.models.length ? null : "This connection lists no chat models.");
+        setModel((m) => (r.models.some((x) => x.id === m) ? m : ""));
+      },
+      (e: unknown) => {
+        if (live)
+          setModelsNote(e instanceof ApiError ? e.message : "The models could not be loaded.");
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [provider, info, connected]);
+
+  // Changing the provider clears the model: an id belongs to one maker.
+  function chooseProvider(next: Provider) {
+    if (next === provider) return;
+    setProvider(next);
+    setModel("");
+    setError(null);
   }
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: reload only when the provider changes
-  useEffect(() => {
-    void loadModels(provider);
-  }, [provider]);
+  async function saveKey(key: string) {
+    await agentApi.setKey(provider, key);
+    await refreshAgent();
+  }
+
+  // Sign in with ChatGPT: the local helper holds the session; the page only starts it and waits.
+  async function connectChatGPT() {
+    const login = (await agentApi.siwcLogin()) as SiwcLoginExtra;
+    const { url } = login;
+    // With several accounts the server names the origins the address may be on. Open nothing else.
+    if (login.authOrigins && url && !addressIsTrusted(url, login.authOrigins)) {
+      throw new ApiError(0, "bad_login_url", "The ChatGPT sign-in address was not trusted.");
+    }
+    setCanPaste(login.pasteCallback === true);
+    if (url) window.open(url, "_blank", "noopener");
+    for (let i = 0; i < 150; i++) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const st = (await agentApi.siwcStatus()) as SiwcStatusExtra;
+      if (st.signedIn) {
+        setSiwc({ signedIn: true, ...(st.email ? { email: st.email } : {}) });
+        setCanPaste(false);
+        await refreshAgent();
+        return;
+      }
+      // A refusal ends the wait at once and says why: the same ChatGPT account for two people,
+      // a sign-in that took too long, another person signing in. With the account map off the
+      // page keeps polling as it always did.
+      if (st.multi === true && !st.signingIn && (st.reason || st.error?.message)) {
+        setCanPaste(false);
+        throw new ApiError(
+          409,
+          st.error?.code ?? "signin_refused",
+          st.reason ?? st.error?.message ?? "",
+        );
+      }
+    }
+    setCanPaste(false);
+    throw new ApiError(0, "signin_timeout", "The ChatGPT sign-in did not finish. Try again.");
+  }
+
+  async function pasteCallback(address: string) {
+    await api.post<{ accepted: true }>("/me/agent/siwc/callback", { callbackUrl: address });
+  }
+
+  async function disconnectChatGPT() {
+    await agentApi.siwcLogout();
+    setSiwc({ signedIn: false });
+    setOfferDisconnect(false);
+    await refreshAgent();
+  }
 
   if (!person) return null;
 
-  function ModelField() {
-    if (provider === "scripted")
-      return (
-        <TextField label="Model" placeholder="none" value="" disabled onChange={() => undefined} />
-      );
-    return models?.length ? (
-      <label className={ui.field}>
-        <span className={ui.label}>Model</span>
-        <select
-          className={s.select}
-          value={model}
-          onChange={(e) => {
-            setModel(e.target.value);
-            setError(null);
-          }}
-        >
-          {models.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.label}
-            </option>
-          ))}
-        </select>
-      </label>
-    ) : (
-      <TextField
-        label="Model"
-        placeholder={modelsNote ?? "the list loads once your key is in"}
-        value=""
-        disabled
-        onChange={() => undefined}
-      />
-    );
-  }
   const color = seatVar(person.color);
   const urlProblem = kind === "brought" ? cardUrlProblem(cardUrl) : null;
-  // docs/web-api.md: OpenAI and Gemini need a model name; Anthropic has a default.
-  const needsModel = kind === "consilith" && (provider === "openai" || provider === "gemini");
+  // Every real provider needs a model chosen from its list; none is filled in for the person.
+  const needsModel = kind === "consilith" && Boolean(info?.needsModel);
   const modelProblem =
-    needsModel && !model.trim() ? "Name the model to use with this provider." : null;
+    needsModel && !model.trim() ? "Choose the model to use with this provider." : null;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -169,16 +210,12 @@ export function YourAgentPage({ settings = false }: { settings?: boolean }) {
       const saved = await agentApi.save({
         kind,
         provider,
-        model:
-          kind === "consilith" && provider !== "scripted" && model.trim() ? model.trim() : null,
+        model: needsModel && model.trim() ? model.trim() : null,
         autonomy,
         cardUrl: kind === "brought" ? cardUrl.trim() : null,
+        hourlyCap: agent?.hourlyCap ?? null,
       });
-      if (kind === "consilith" && key.trim() && provider !== "scripted" && provider !== "siwc") {
-        await agentApi.setKey(provider, key.trim());
-      }
-      setKey("");
-      setAgent({ ...saved, hasKey: saved.hasKey || Boolean(key.trim()) });
+      setAgent(saved);
       if (settings) {
         navigate("/");
         return;
@@ -192,7 +229,6 @@ export function YourAgentPage({ settings = false }: { settings?: boolean }) {
       }
       navigate(next);
     } catch (err) {
-      setKey("");
       setError(err instanceof ApiError ? err.message : "Saving failed. Try again.");
     } finally {
       setBusy(false);
@@ -287,91 +323,57 @@ export function YourAgentPage({ settings = false }: { settings?: boolean }) {
                   <Info text="It reads, labels and negotiates; it never produces a number. Your key stays in server memory for this session only." />
                 </span>
               </legend>
-              {siwc.signedIn ? (
-                <div className={s.chatgptOn}>
-                  <span className={s.chatgptMark} aria-hidden />
-                  <button
-                    type="button"
-                    className={s.chatgptUse}
-                    aria-pressed={provider === "siwc"}
-                    onClick={() => setProvider("siwc")}
-                  >
-                    ChatGPT plan{siwc.email ? ` · ${siwc.email}` : ""}
-                  </button>
-                  <button
-                    type="button"
-                    className={s.chatgptOff}
-                    onClick={async () => {
-                      await agentApi.siwcLogout().catch(() => undefined);
-                      setSiwc({ available: true, signedIn: false });
-                      if (provider === "siwc") setProvider("anthropic");
-                    }}
-                  >
-                    Disconnect
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  className={s.chatgpt}
-                  disabled={!siwc.available || siwcBusy}
-                  aria-pressed={provider === "siwc"}
-                  onClick={connectChatGPT}
-                >
-                  <span className={s.chatgptMark} aria-hidden />
-                  {siwcBusy
-                    ? "Opening ChatGPT… finish in the new tab"
-                    : !siwc.available
-                      ? "Continue with ChatGPT · helper not running"
-                      : "Continue with ChatGPT"}
-                </button>
-              )}
               <div className={s.row2}>
                 <label className={ui.field}>
                   <span className={ui.label}>Provider</span>
                   <select
                     className={s.select}
                     value={provider}
-                    onChange={(e) => setProvider(e.target.value as Provider)}
+                    onChange={(e) => chooseProvider(e.target.value)}
                   >
-                    {PROVIDERS.filter((p) => p.id !== "siwc" || siwc.signedIn).map((p) => (
+                    {(providers ?? []).map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.label}
                       </option>
                     ))}
                   </select>
                 </label>
-                {provider === "siwc" || provider === "scripted" ? (
-                  <ModelField />
-                ) : (
-                  <TextField
-                    label="API key"
-                    type="password"
-                    autoComplete="off"
-                    spellCheck={false}
-                    placeholder={
-                      agent?.hasKey ? "held for this session" : "paste your key, then Enter"
-                    }
-                    value={key}
-                    onChange={(e) => setKey(e.target.value)}
-                    onBlur={() => key.trim() && void loadModels(provider, key.trim())}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && key.trim()) {
-                        e.preventDefault();
-                        void loadModels(provider, key.trim());
-                      }
-                    }}
-                  />
-                )}
+                <ModelPicker
+                  models={models}
+                  value={model}
+                  onChange={(m) => {
+                    setModel(m);
+                    setError(null);
+                  }}
+                  note={info?.needsModel ? modelsNote : "no model needed"}
+                  className={s.select}
+                />
               </div>
-              {provider === "siwc" || provider === "scripted" ? (
-                <span className={s.hint}>
-                  {provider === "siwc"
-                    ? "Runs on your ChatGPT plan: no API key needed."
-                    : "Scripted replies only: no model and no key."}
+              {info ? (
+                <ConnectPanel
+                  provider={info}
+                  credential={credential}
+                  {...(info.auth === "key" ? { onSaveKey: saveKey } : {})}
+                  {...(info.auth === "chatgpt"
+                    ? {
+                        onConnectChatGPT: connectChatGPT,
+                        onDisconnectChatGPT: disconnectChatGPT,
+                        ...(siwc.email ? { email: siwc.email } : {}),
+                        ...(multi ? { multi: true } : {}),
+                        ...(multi && canPaste ? { onPasteCallback: pasteCallback } : {}),
+                        ...(offerDisconnect ? { offerDisconnect: true } : {}),
+                      }
+                    : {})}
+                />
+              ) : providersError ? (
+                <span className={s.bad} role="alert">
+                  The provider list could not be loaded.{" "}
+                  <button type="button" className={s.learn} onClick={loadProviderList}>
+                    Try again
+                  </button>
                 </span>
               ) : (
-                <ModelField />
+                <span className={s.hint}>Loading providers…</span>
               )}
             </fieldset>
           )}

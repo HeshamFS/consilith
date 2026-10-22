@@ -1,0 +1,109 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.state {
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.state[data-state="ready"] {
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+
+.state[data-state="validating"] {
+  background: var(--wait-bg);
+  color: var(--wait-fg);
+}
+
+.state[data-state="invalid"],
+.state[data-state="expired"],
+.state[data-state="needs_reentry"] {
+  background: var(--bad-bg);
+  color: var(--bad-fg);
+}
+
+.reason {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--bad-fg);
+}
+
+.row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* A fieldset, not a form: the panel sits inside the page's own form. */
+.group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.input {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 8px 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--seat-blue);
+  outline-offset: 1px;
+}
+
+.account {
+  font-size: 14px;
+  flex: 1 1 auto;
+}
+
+.terms,
+.lifetime {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}

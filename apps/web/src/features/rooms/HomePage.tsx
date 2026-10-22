@@ -1,8 +1,15 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { agentApi, type MyAgent, PROVIDERS } from "@/features/agent/api";
+import {
+  agentApi,
+  loadProviders,
+  type MyAgent,
+  PROVIDERS,
+  type ProviderInfo,
+  providerLabel,
+} from "@/features/agent/api";
 import { useAuth } from "@/features/auth";
-import { AUTONOMY, PLUGINS, STUDIOS, type StudioId } from "@/shared/domain/disciplines";
+import { AUTONOMY, PLUGINS, roleInfo, STUDIOS, type StudioId } from "@/shared/domain/disciplines";
 import { ApiError } from "@/shared/http/client";
 import { Avatar, ButtonLink, Icon, type IconName, seatVar } from "@/shared/ui";
 import { WorkspaceShell } from "@/shared/ui/Shell";
@@ -21,6 +28,7 @@ export function HomePage() {
   const { person } = useAuth();
   const [rooms, setRooms] = useState<RoomSummary[] | null>(null);
   const [agent, setAgent] = useState<MyAgent | null>(null);
+  const [providers, setProviders] = useState<ProviderInfo[]>(() => [...PROVIDERS]);
   const [failed, setFailed] = useState<string | null>(null);
 
   useEffect(() => {
@@ -29,6 +37,11 @@ export function HomePage() {
       setFailed(e instanceof ApiError ? e.message : "Your rooms could not be loaded.");
     });
     agentApi.get().then(setAgent, () => setAgent(null));
+    // The registry is data from the server; labels show once it has loaded.
+    loadProviders().then(
+      (list) => setProviders([...list]),
+      () => undefined,
+    );
   }, []);
 
   if (!person) return null;
@@ -127,7 +140,7 @@ export function HomePage() {
               />
               <div>
                 <div className={s.agentName}>{person.id}.agent</div>
-                <div className={s.p}>{agentLine(agent)}</div>
+                <div className={s.p}>{agentLine(agent, providers)}</div>
               </div>
             </div>
             <div className={s.facts}>
@@ -171,11 +184,11 @@ export function HomePage() {
   );
 }
 
-function agentLine(a: MyAgent | null): string {
+function agentLine(a: MyAgent | null, providers: ProviderInfo[]): string {
   if (!a) return "Not set up yet";
   const autonomy = AUTONOMY.find((x) => x.id === a.autonomy)?.label ?? "";
   if (a.kind === "brought") return `Your A2A agent · ${autonomy}`;
-  const provider = PROVIDERS.find((p) => p.id === a.provider)?.label ?? a.provider;
+  const provider = providerLabel(a.provider, providers);
   return `Consilith agent · ${provider} · ${autonomy}`;
 }
 
@@ -183,19 +196,24 @@ function RoomCard({ room, me }: { room: RoomSummary; me: string }) {
   const others = room.seats.filter((x) => x.id !== me);
   return (
     <div className={s.roomWrap}>
-      <Link to={`/rooms/${encodeURIComponent(room.id)}`} className={s.roomCard}>
-        <Icon name={STUDIO_ICON[room.studio]?.icon ?? "room"} size={32} />
+      <Link
+        to={`/rooms/${encodeURIComponent(room.id)}`}
+        className={s.roomCard}
+        title={`/rooms/${room.id}`}
+      >
+        <span className={s.roomIcon} aria-hidden>
+          <Icon name={STUDIO_ICON[room.studio]?.icon ?? "room"} size={20} />
+        </span>
         <div className={s.roomBody}>
           <div className={s.roomTitle}>{room.title}</div>
           <div className={s.roomMeta}>
             <span>{STUDIOS[room.studio]?.label ?? room.studio}</span>
-            {room.role ? <span>· you are {room.role}</span> : null}
-            <span className="mono">· {room.id}</span>
+            {room.role ? <span>· {roleInfo(room.role).label}</span> : null}
           </div>
         </div>
         <div className={s.seats}>
           {room.seats.map((x) => (
-            <Avatar key={x.id} name={x.name || x.id} color={x.color} size={28} />
+            <Avatar key={x.id} name={x.name || x.id} color={x.color} size={24} />
           ))}
           <span className="visually-hidden">{room.seats.length} of 4 seats taken</span>
         </div>
