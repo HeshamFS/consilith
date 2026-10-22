@@ -18,8 +18,8 @@ test/
 e2e/
 **/test_*.py
 # The imported Crystal-GENUI package keeps its public regression tests.
-!plugins/crystal-genui/tests/
-!plugins/crystal-genui/tests/**
+!plugins/crystallography/tests/
+!plugins/crystallography/tests/**
 *.test.*
 *.spec.*
 .agents/

@@ -96,8 +96,12 @@ def smoke() -> None:
     assert call("/api/me", token=session["token"])
     print("Docker gateway, room health, email redemption, and authenticated account: passed")
     status = call("/api/me/agent/siwc", token=session["token"])
-    # A connected plan belongs to its real owner, not this disposable smoke-test account.
-    if not status.get("available") and status.get("reason") != "connected by another person":
+    # With several ChatGPT accounts on, every person has their own account on the helper, so a
+    # fresh smoke-test account reaches it and reads "available". With one account, a plan that is
+    # connected belongs to its real owner and this disposable account is told so.
+    reached = status.get("available") is True
+    single_owner = status.get("reason") == "connected by another person"
+    if not reached and not single_owner:
         raise SystemExit("Docker room cannot reach the configured ChatGPT helper")
     print("Authenticated Docker route to ChatGPT helper: passed (account sign-in is separate)")
 
