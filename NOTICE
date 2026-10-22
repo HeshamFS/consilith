@@ -1,0 +1,15 @@
+Consilith
+Copyright 2026 Hesham Salama
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Parts of this repository carry their own licenses, which continue to apply:
+
+- plugins/crystallography: adapted from Crystal-GENUI by Ankita Biswas,
+  MIT License (plugins/crystallography/LICENSE).
+- plugins/crystal-genui: Crystal-GENUI by Ankita Biswas, MIT License
+  (plugins/crystal-genui/LICENSE).
+- The Sign in with ChatGPT DevKit used by apps/siwc is not included in this
+  repository; the Docker build fetches it and keeps its own license and terms.
+- Third-party Python and JavaScript dependencies are pinned in uv.lock and the
+  npm lockfiles under apps/; their licenses apply to that material.
