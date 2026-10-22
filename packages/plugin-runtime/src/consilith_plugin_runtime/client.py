@@ -3,17 +3,26 @@
 from __future__ import annotations
 
 import asyncio
+import atexit
 import inspect
 import json
 import os
+import secrets
+import shutil
 import signal
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
+from collections.abc import Mapping
 from contextlib import contextmanager, suppress
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
+
+from consilith_contracts.plugins import PluginManifest
+from pydantic import ValidationError
 
 from .codec import (
     ATTRIBUTES,
@@ -113,6 +122,31 @@ async def await_value(value):
     return await value
 
 
+HASH_DIR_ENV = "CONSILITH_PLUGIN_HASH_DIR"
+_hash_dir: Path | None = None
+_hash_dir_lock = threading.Lock()
+
+
+def plugin_hash_dir() -> str | None:
+    """A private, unguessable directory for the workers' file-hash cache, one per host process.
+
+    ``mkdtemp`` creates it with mode 700 where the OS has modes, and the random part of its name
+    is 96 bits. Workers verify its owner and mode again before they trust any cached digest, and
+    without it they recompute every hash. It is removed when the host exits.
+    """
+    global _hash_dir
+    with _hash_dir_lock:
+        if _hash_dir is None:
+            try:
+                path = Path(tempfile.mkdtemp(prefix=f"consilith-plugin-{secrets.token_hex(12)}-"))
+                path.chmod(0o700)
+            except OSError:
+                return None
+            atexit.register(shutil.rmtree, path, ignore_errors=True)
+            _hash_dir = path
+        return str(_hash_dir)
+
+
 def safe_environment() -> dict[str, str]:
     allowed = {
         "PATH",
@@ -132,6 +166,9 @@ def safe_environment() -> dict[str, str]:
     # This carries import paths, never the room's environment or credential configuration.
     result["PYTHONPATH"] = os.pathsep.join(str(path) for path in sys.path if path)
     result["PYTHONDONTWRITEBYTECODE"] = "1"
+    cache = plugin_hash_dir()
+    if cache:
+        result[HASH_DIR_ENV] = cache
     return result
 
 
@@ -276,10 +313,110 @@ def exchange(
             return message["value"]
 
 
-def load(reference: str, timeout_s: float | None = None) -> tuple[dict, dict]:
+class CatalogMismatch(ValueError):
+    """A plugin worker's manifest claims more than the operator catalog grants it."""
+
+
+BOUND_SURFACES = ("mcpServers", "tools", "policyPorts")
+_FROM_CATALOG: Any = object()
+
+
+def catalog_binding(
+    reference: str, path: str | os.PathLike[str] | None = None
+) -> Mapping[str, Any] | None:
+    """What the operator catalog grants one plugin endpoint, read from the catalog file.
+
+    ``None`` means no catalog is in force or the reference is not in it (a dev subprocess). An
+    endpoint the catalog lists without a ``binding`` gets an empty one. The file is the one the
+    room and referee already read through ``read_catalog``; tokens in it are never returned.
+    """
+    target = path or os.environ.get("CONSILITH_PLUGIN_CATALOG")
+    if not target:
+        return None
+    document = json.loads(Path(target).read_bytes())
+    for plugin in document.get("plugins", []):
+        if plugin.get("reference") == reference:
+            binding = plugin.get("binding")
+            return binding if isinstance(binding, dict) else {}
+    return None
+
+
+def _grants(value: Any) -> list[Any] | None:
+    return list(value) if isinstance(value, list) else None
+
+
+def check_manifest(
+    manifest: Any, binding: Mapping[str, Any], *, strict: bool = False
+) -> PluginManifest:
+    """Refuse a worker manifest that goes beyond the operator catalog's grant.
+
+    The grant is a ceiling on what the worker may claim: MCP servers (and the tools on each),
+    plugin tools and host policy ports. A surface the catalog does not bind is not checked,
+    unless ``strict`` (production), where every surface must be bound.
+    """
+    try:
+        parsed = PluginManifest.model_validate(manifest)
+    except ValidationError:
+        raise CatalogMismatch("the plugin manifest is not valid") from None
+    servers = _grants(binding.get("mcpServers"))
+    if strict:
+        unbound = [name for name in BOUND_SURFACES if name not in binding]
+        if servers is not None and any(
+            not isinstance(server, dict) or "tools" not in server for server in servers
+        ):
+            unbound.append("mcpServers.tools")
+        if unbound:
+            raise CatalogMismatch(
+                f"the operator catalog does not bind {', '.join(unbound)} for this plugin"
+            )
+    if servers is not None:
+        allowed: dict[str, set[str] | None] = {}
+        for server in servers:
+            if isinstance(server, dict) and isinstance(server.get("id"), str):
+                tools = _grants(server.get("tools"))
+                allowed[server["id"]] = None if tools is None else {str(t) for t in tools}
+        for declared_server in parsed.mcp_servers:
+            if declared_server.id not in allowed:
+                raise CatalogMismatch(
+                    f"the plugin declares MCP server {declared_server.id!r}, which the operator "
+                    "catalog does not assign to it"
+                )
+            ceiling = allowed[declared_server.id]
+            extra = set(declared_server.tools) - ceiling if ceiling is not None else set()
+            if extra:
+                raise CatalogMismatch(
+                    f"the plugin declares tool(s) {sorted(extra)} on MCP server "
+                    f"{declared_server.id!r} that the operator catalog does not grant"
+                )
+    for field, declared in (("tools", parsed.tools), ("policyPorts", parsed.policy_ports)):
+        grant = _grants(binding.get(field))
+        if grant is None:
+            continue
+        extra = set(declared) - {str(item) for item in grant}
+        if extra:
+            noun = "tool(s)" if field == "tools" else "host port(s)"
+            raise CatalogMismatch(
+                f"the plugin declares {noun} {sorted(extra)} "
+                "that the operator catalog does not grant"
+            )
+    return parsed
+
+
+def load(
+    reference: str,
+    timeout_s: float | None = None,
+    binding: Mapping[str, Any] | None = _FROM_CATALOG,
+) -> tuple[dict, dict]:
+    """Describe a plugin release. The operator catalog, not the worker, owns what it may claim:
+    its MCP servers, tools and host ports (``binding``, by default read from the catalog file)."""
     timeout_s = plugin_timeout_s() if timeout_s is None else timeout_s
+    if binding is _FROM_CATALOG:
+        binding = catalog_binding(reference)
+    strict = os.environ.get("CONSILITH_ENV") == "production"
     description = exchange(reference, {"op": "describe"}, timeout_s)
     metadata = description["metadata"]
+    # Until the manifest is checked, grant nothing beyond what the worker declared.
+    granted_ports: set[str] = set(metadata.get("manifest", {}).get("policyPorts", []))
 
     def bind(marker: dict) -> Any:
         if "$function" not in marker:
@@ -287,7 +424,7 @@ def load(reference: str, timeout_s: float | None = None) -> tuple[dict, dict]:
         path = marker["$function"]
 
         def invoke(args: tuple, kwargs: dict, loop: asyncio.AbstractEventLoop | None = None) -> Any:
-            ports = HostCapabilities(set(metadata.get("manifest", {}).get("policyPorts", [])))
+            ports = HostCapabilities(set(granted_ports))
             request = {
                 "op": "invoke",
                 "path": path,
@@ -320,4 +457,25 @@ def load(reference: str, timeout_s: float | None = None) -> tuple[dict, dict]:
         function.__name__ = str(path[-1])
         return function
 
-    return metadata, decode(description["sections"], bind)
+    sections = decode(description["sections"], bind)
+    # A catalog written before bindings existed binds nothing: it is read as before, except in
+    # production. Once any surface is bound, the worker must return a manifest to check.
+    if binding is not None and (strict or any(name in binding for name in BOUND_SURFACES)):
+        # Both copies of the manifest the room may read are held to the grant. The one the
+        # registry trusts (sections first, as load_extensions reads it) sets the host ports.
+        declared = [
+            raw
+            for raw in (sections.get("plugin", {}).get("manifest"), metadata.get("manifest"))
+            if raw
+        ]
+        if not declared:
+            raise CatalogMismatch(
+                f"{reference}: a plugin bound by the catalog must return a manifest"
+            )
+        try:
+            checked = [check_manifest(raw, binding, strict=strict) for raw in declared]
+        except CatalogMismatch as exc:
+            raise CatalogMismatch(f"{reference}: {exc}") from None
+        granted_ports.clear()
+        granted_ports.update(checked[0].policy_ports)
+    return metadata, sections
