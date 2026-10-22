@@ -16,7 +16,7 @@ from consilith_contracts.extensions import (
     optional_extension,
     registry_scope,
 )
-from fastapi import Depends, FastAPI, Query, Request
+from fastapi import Depends, FastAPI, Header, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import Field
@@ -25,7 +25,9 @@ from ..agents.session import agent_session
 from ..domain.actors import Actor
 from ..domain.errors import Denied, NotFound, RoomError
 from ..domain.service import RoomService
-from ..platform.settings import Settings, get_settings
+from ..platform.errors import ModelError, NotConfigured
+from ..platform.security_gate import replay_allowed
+from ..platform.settings import Settings, get_settings, warn_closed_gates
 from ..protocols import illustrative
 from ..protocols.a2a_host import A2ADispatch
 from ..protocols.agui import Emitter, feed_stream
@@ -35,6 +37,11 @@ from .dev import dev_router, write_capability
 from .hub import Hub
 from .me import me_agent_router
 from .plugins import plugins_router
+from .routes_agent import agent_router
+from .routes_apps import apps_router
+from .routes_catalog import DISCOVER_LIMIT, WARM_LIMIT, catalog_router, operator_gate
+from .routes_history import history_router
+from .routes_providers import providers_router
 from .schemas import Body
 
 logger = logging.getLogger("consilith.api")
@@ -132,6 +139,7 @@ def create_app(settings: Settings | None = None, hub: Hub | None = None) -> Fast
 
     app = FastAPI(title="Consilith room server", version="0.1.0", lifespan=lifespan)
     app.state.hub = hub
+    app.state.gates = warn_closed_gates(settings)  # a flag whose security gate fails stays off
     app.add_middleware(A2ADispatch, resolve=hub.runtime.hosted, tokens=hub.tokens)
     hub.asgi_app = app
 
@@ -141,6 +149,29 @@ def create_app(settings: Settings | None = None, hub: Hub | None = None) -> Fast
         if exc.details:
             body["details"] = exc.details
         return JSONResponse({"error": body}, status_code=exc.status)
+
+    @app.exception_handler(ModelError)
+    async def model_error(_req: Request, exc: ModelError) -> JSONResponse:
+        """A model failure in any route: the same shape as a ``RoomError`` plus the words to show
+        and what to do. Only fixed text crosses: never an SDK message, a key or a prompt."""
+        if isinstance(exc, NotConfigured):
+            status = 503
+        elif exc.code == "rate_limit":
+            status = 429
+        else:
+            status = 502
+        err = {
+            "code": exc.code,
+            "message": exc.user_message,
+            "user_message": exc.user_message,
+            "fix_action": exc.fix_action,
+        }
+        headers = (
+            {"Retry-After": str(max(1, round(exc.retry_after_s)))}
+            if status == 429 and exc.retry_after_s
+            else None
+        )
+        return JSONResponse({"error": err}, status_code=status, headers=headers)
 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(_req: Request, exc: RequestValidationError) -> JSONResponse:
@@ -157,6 +188,10 @@ def create_app(settings: Settings | None = None, hub: Hub | None = None) -> Fast
     app.include_router(auth_router(hub, settings, current))
     app.include_router(plugins_router(hub, person))
     app.include_router(me_agent_router(hub, current))
+    app.include_router(providers_router())
+    app.include_router(agent_router(hub, person))
+    app.include_router(catalog_router(hub, person))
+    app.include_router(history_router(hub, person))
     admission = Admission(hub)
     app.include_router(admission_router(admission, person))
     if settings.dev_mailbox and settings.env != "production":  # fail closed: not even routed
@@ -192,19 +227,41 @@ def create_app(settings: Settings | None = None, hub: Hub | None = None) -> Fast
             raise Denied(f"{pid} has no seat in room {room_id}")
         return room
 
+    app.include_router(apps_router(hub, current, seated))
+
     # identity ---------------------------------------------------------------------------
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
     @app.get("/capabilities")
-    def capabilities() -> dict[str, Any]:
+    def capabilities(
+        authorization: Annotated[str | None, Header()] = None,
+    ) -> dict[str, Any]:
+        """Installed studios. The web app loads this before anyone signs in, and the staged
+        release probe asks without a token, so it stays open; without a session it names only
+        what a studio picker shows. Lanes, roles, actions and package pins need a session."""
         hub.refresh_plugins()
+        try:
+            current(authorization)
+            signed_in = True
+        except Denied:
+            signed_in = False
         with registry_scope():
-            return {
-                "contractVersion": "1",
-                "capabilities": [describe_case(c) for c in all_extensions("cases").values()],
-            }
+            described = [describe_case(c) for c in all_extensions("cases").values()]
+        if not signed_in:
+            described = [
+                {
+                    "id": c["id"],
+                    "label": c["label"],
+                    "grammar": c["grammar"],
+                    "description": c["description"],
+                    "inputs": c["inputs"],
+                    "lanes": [],
+                }
+                for c in described
+            ]
+        return {"contractVersion": "1", "capabilities": described}
 
     @app.get("/illustrative")
     def illustrative_set(_p: Annotated[str, Depends(person)]) -> dict[str, Any]:
@@ -319,9 +376,25 @@ def create_app(settings: Settings | None = None, hub: Hub | None = None) -> Fast
         }
         if media not in ARTIFACT_TYPES and media not in extra_media:
             raise RoomError(f"unsupported artifact type {media!r}")
-        body = await request.body()
-        if not body or len(body) > MAX_ARTIFACT:
-            raise RoomError("an artifact is between 1 byte and 10 MB")
+        # Refuse by the declared length first, then read in chunks under a hard limit, so a
+        # large or lying upload stops early and is never held in memory whole.
+        too_big = RoomError("an artifact is between 1 byte and 10 MB")
+        limit = MAX_ARTIFACT
+        declared = request.headers.get("content-length")
+        if declared is not None:
+            if not declared.isascii() or not declared.isdigit() or int(declared) > MAX_ARTIFACT:
+                raise too_big
+            limit = int(declared)
+        chunks: list[bytes] = []
+        received = 0
+        async for chunk in request.stream():
+            received += len(chunk)
+            if received > limit:
+                raise too_big
+            chunks.append(chunk)
+        body = b"".join(chunks)
+        if not body:
+            raise too_big
         sha = hashlib.sha256(body).hexdigest()
         hub.store.put_artifact(sha, media, body)
         room.note(Actor.person(p), "artifact.uploaded", {"sha256": sha, "mediaType": media})
@@ -381,13 +454,16 @@ def create_app(settings: Settings | None = None, hub: Hub | None = None) -> Fast
 
     # solves ------------------------------------------------------------------------------
     @app.post("/solvers/discover")
-    async def discover(_p: Annotated[str, Depends(person)]) -> dict[str, Any]:
+    async def discover(p: Annotated[str, Depends(person)]) -> dict[str, Any]:
+        """Operator only, and rate limited: it opens a connection to every registered server."""
+        operator_gate(hub, p, "discover", DISCOVER_LIMIT)
         tools = await hub.runtime.registry.discover()
         return {"tools": sorted(tools), "unreachable": hub.runtime.registry.unreachable}
 
     @app.post("/solvers/warm")
-    async def warm_solvers(_p: Annotated[str, Depends(person)]) -> dict[str, Any]:
+    async def warm_solvers(p: Annotated[str, Depends(person)]) -> dict[str, Any]:
         """One small call per solver before recording, so no cold start exceeds 2 s."""
+        operator_gate(hub, p, "warm", WARM_LIMIT)
         from ..agents.warmup import warm
 
         return await warm(hub.runtime.registry)
@@ -529,8 +605,8 @@ def create_app(settings: Settings | None = None, hub: Hub | None = None) -> Fast
 
         seated(room_id, p)
         viewer = body.viewer or p
-        if body.session == "agent" and viewer != p:
-            raise Denied("an agent session is private to its person")
+        if not replay_allowed(p, viewer):
+            raise Denied("a recorded session is private to its person")
         events = recorded_run(hub.journal, room_id, viewer, body.session, body.run_id)
         if not events:
             raise NotFound("no recorded run for that viewer and session")
@@ -573,9 +649,10 @@ def create_app(settings: Settings | None = None, hub: Hub | None = None) -> Fast
             inp,
             emit=emit,
             seen_messages=hub.seen_messages[f"{room_id}:{p}"],
-            respond=hub.respond,
+            respond=hub.responder(app.state.gates["agent_loop"]),
             after_decision=hub.after_decision,
             sid=s.sid,
+            runner=hub.turn_runner(app.state.gates["agent_loop"]),
         )
         return StreamingResponse(stream, media_type="text/event-stream", headers=SSE_HEADERS)
 

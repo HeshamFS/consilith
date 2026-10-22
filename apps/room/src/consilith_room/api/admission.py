@@ -25,6 +25,7 @@ from ..domain.service import RoomService
 from ..platform.clock import iso
 from ..platform.links import digest_of
 from ..platform.mail import MailError
+from ..platform.stores import run_leave_hooks, run_room_delete_hooks
 from .hub import Hub
 from .me import check_card_url, prefs_of
 from .schemas import AcceptIn, AgentChoiceIn, NewInviteIn, NewRoomIn
@@ -127,6 +128,7 @@ class Admission:
             raise Conflict("you created this room: delete it instead, or it would have no owner")
         room.leave(pid)
         self.hub.store.remove_seat(room_id, pid)
+        run_leave_hooks(self.hub.store, room_id, pid)
         return {"left": room_id}
 
     def delete(self, pid: str, room_id: str, confirm: str) -> None:
@@ -137,7 +139,8 @@ class Admission:
             raise Denied("only the person who created this room can delete it")
         if confirm != room_id:
             raise RoomError("type the room's address to confirm")
-        self.hub.store.delete_room(room_id)
+        self.hub.store.delete_room(room_id, run_hooks=False)
+        run_room_delete_hooks(self.hub.store, room_id)
         self.hub.forget_room(room_id)
 
     # invites ----------------------------------------------------------------------------------

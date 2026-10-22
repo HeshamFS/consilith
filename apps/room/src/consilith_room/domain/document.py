@@ -148,6 +148,59 @@ def activation_patch(doc: Doc, plugin_id: str) -> Patch:
     return patch
 
 
+@registry_operation
+def migration_patch(doc: Doc) -> tuple[Patch, dict[str, Any]]:
+    """Move a room's active plugins to the releases installed now: new pins, the new case
+    schemas and descriptors, and the defaults of fields the new release added. Values a person
+    set stay as they are; earlier results keep the provenance of the release that made them."""
+    active = list(doc["room"].get("activePlugins", []))
+    if not active:
+        return [], {}
+    cases_installed = all_extensions("cases")
+    fresh = plugins_for(active)
+    new_pins = package_pins(active)
+    old: dict[str, dict[str, Any]] = {
+        PackagePin.model_validate(p).entry_point: cast(dict[str, Any], p)
+        for p in doc.get("packagePins", [])
+    }
+    changed: dict[str, dict[str, Any]] = {
+        PackagePin.model_validate(p).entry_point: {
+            "from": old.get(PackagePin.model_validate(p).entry_point, {}).get("version"),
+            "to": p.get("version"),
+        }
+        for p in new_pins
+        if old.get(PackagePin.model_validate(p).entry_point) != p
+    }
+    if not changed:
+        return [], {}
+    patch: Patch = []
+    capabilities: list[dict[str, Any]] = []
+    for plugin in fresh:
+        for cid in plugin["capabilities"]:
+            case = cases_installed[cid]
+            capabilities.append(describe_case(case))
+            patch.append({"op": "add", "path": f"/schemas/{cid}", "value": case.wire()})
+            lanes = dict(doc.get("lanes", {}).get(cid, {}))
+            twin = copy.deepcopy(doc.get("twin", {}).get(cid, {}))
+            revisions = dict(doc.get("revisions", {}).get(cid, {}))
+            for lane, defaults in case_defaults(case).items():
+                lanes.setdefault(lane, None)
+                current = twin.setdefault(lane, {})
+                added = {k: v for k, v in defaults.items() if k not in current}
+                if added:
+                    current.update(copy.deepcopy(added))
+                    revisions[lane] = digest(current)
+            for section, value in (("lanes", lanes), ("twin", twin), ("revisions", revisions)):
+                patch.append({"op": "add", "path": f"/{section}/{cid}", "value": value})
+    for path, value in (
+        ("/room/plugins", fresh),
+        ("/room/capabilities", capabilities),
+        ("/packagePins", new_pins),
+    ):
+        patch.append({"op": "add", "path": path, "value": value})
+    return patch, changed
+
+
 def snapshot_catalog(doc: Doc) -> Doc:
     """Project historical schemas without substituting current plugin definitions or pins."""
     out = copy.deepcopy(doc)

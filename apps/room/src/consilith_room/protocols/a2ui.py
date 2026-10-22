@@ -8,7 +8,12 @@ sent it passes ``validate``:
 - every number in a data model sits inside an object whose ``provenanceId`` resolves to a
   stored result, ledger entry or spec value (FR-UI-1); ``/meta`` is exempt (phases, wiring);
 - unknown values are ``{"placeholder": "..."}`` (FR-UI-4); assumed ones carry
-  ``"illustrative": true`` (FR-UI-5).
+  ``"illustrative": true`` (FR-UI-5);
+- a surface holds at most ``MAX_COMPONENTS`` components and nests at most ``MAX_DEPTH`` deep,
+  the same caps the browser applies (``apps/web/src/shared/a2ui/surface.ts``).
+
+This module is the single source of the catalog's names. ``tools/gen_catalog.py`` writes the
+TypeScript lists from ``catalog_manifest()``, and a test fails when the two differ.
 """
 
 from __future__ import annotations
@@ -22,6 +27,16 @@ VERSION = "v0.9"
 CATALOG_ID = "https://consilith.local/a2ui/catalogs/consilith/v0_9"
 MEDIA_TYPE = "application/a2ui+json"
 PHASES = ("absent", "skeleton", "materialising", "live", "rest")
+# The caps a surface keeps on the server and in the browser.
+MAX_COMPONENTS = 500
+MAX_DEPTH = 24
+# Closed value sets. The ``Literal`` types below repeat them (pyright needs literals); a test
+# keeps each pair equal.
+TEXT_VARIANTS = ("body", "caption", "h1", "h2", "h3")
+LAYOUT_KINDS = ("stack", "grid", "split", "tabs", "section")
+LAYOUT_RATIOS = ("balanced", "focus-start", "focus-end")
+LAYOUT_EMPHASES = ("plain", "surface", "hero", "quiet")
+LAYOUT_DENSITIES = ("comfortable", "compact")
 # Provenance ids of the server's illustrative set (protocols/illustrative.py). A value that cites
 # one must say ``"illustrative": true``: it is design data, not a result.
 ILLUSTRATIVE_PREFIX = "ill-v1:"
@@ -142,7 +157,18 @@ DATA_VIEWS = (
     "MetricGrid",
     "JobStatus",
     "EvidenceView",
+    "Chart",
+    "Heatmap",
 )
+# The variants a data view honours. A view listed here refuses any other variant; a view not
+# listed takes none of its own and ignores the field. The first entry is the default.
+VARIANTS: dict[str, tuple[str, ...]] = {
+    "ResultTable": ("table", "compact"),
+    "MetricGrid": ("tiles", "strip"),
+    "Chart": ("line", "scatter", "bar"),
+    "Heatmap": ("sequential", "diverging"),
+    "GhostProposal": ("waiting-for-owner", "read-only"),
+}
 CATALOG: dict[str, type[Props]] = {
     "WorkspaceLayout": WorkspaceLayoutProps,
     "Column": Container,
@@ -178,6 +204,24 @@ def update_data(surface_id: str, value: Any, path: str = "/") -> dict[str, Any]:
     }
 
 
+def catalog_manifest() -> dict[str, Any]:
+    """Everything the browser must mirror: component names and the closed value sets."""
+    return {
+        "catalogId": CATALOG_ID,
+        "version": VERSION,
+        "panels": list(PANELS),
+        "dataViews": list(DATA_VIEWS),
+        "textVariants": list(TEXT_VARIANTS),
+        "layoutKinds": list(LAYOUT_KINDS),
+        "layoutRatios": list(LAYOUT_RATIOS),
+        "layoutEmphases": list(LAYOUT_EMPHASES),
+        "layoutDensities": list(LAYOUT_DENSITIES),
+        "variants": {name: list(values) for name, values in VARIANTS.items()},
+        "maxComponents": MAX_COMPONENTS,
+        "maxDepth": MAX_DEPTH,
+    }
+
+
 def _children(comp: Props) -> list[str]:
     if isinstance(comp, Container | PanelProps):
         return list(comp.children)
@@ -203,20 +247,31 @@ def validate_components(components: list[dict[str, Any]], at: str) -> None:
             raise A2UIError(f"{at}/components/{i}/{loc}", first["msg"]) from exc
         if comp.id in parsed:
             raise A2UIError(f"{at}/components/{i}/id", f"duplicate component id {comp.id!r}")
+        allowed = VARIANTS.get(comp.component)
+        variant = comp.variant if isinstance(comp, DataProps) else None
+        if allowed is not None and variant is not None and variant not in allowed:
+            raise A2UIError(
+                f"{at}/components/{i}/variant",
+                f"{comp.component} takes the variants {', '.join(allowed)}, not {variant!r}",
+            )
         parsed[comp.id] = comp
+    if len(parsed) > MAX_COMPONENTS:
+        raise A2UIError(f"{at}/components", f"a surface holds at most {MAX_COMPONENTS} components")
     if "root" not in parsed:
         raise A2UIError(f"{at}/components", "exactly one component must have id 'root'")
     seen: set[str] = set()
-    stack = ["root"]
+    stack: list[tuple[str, int]] = [("root", 0)]
     while stack:
-        cid = stack.pop()
+        cid, depth = stack.pop()
         if cid in seen:
             raise A2UIError(f"{at}/components", f"component {cid!r} is reachable twice (a cycle)")
+        if depth > MAX_DEPTH:
+            raise A2UIError(f"{at}/components", f"a surface nests at most {MAX_DEPTH} deep")
         seen.add(cid)
         for child in _children(parsed[cid]):
             if child not in parsed:
                 raise A2UIError(f"{at}/components", f"{cid!r} names a missing child {child!r}")
-            stack.append(child)
+            stack.append((child, depth + 1))
     orphans = sorted(set(parsed) - seen)
     if orphans:
         raise A2UIError(f"{at}/components", f"orphan components not reachable from root: {orphans}")

@@ -13,7 +13,6 @@ from typing import Any, cast
 
 from consilith_contracts import (
     AgentConfig,
-    Autonomy,
     CaseDef,
     PatchOp,
     SpecError,
@@ -23,6 +22,7 @@ from consilith_contracts import (
 from consilith_contracts.extensions import all_extensions, default_case, registry_operation
 
 from ..platform.store import DuplicateOp, LogRow, Store
+from . import prefs as seat_defaults
 from .actors import Actor, agent_id
 from .document import (
     Doc,
@@ -32,6 +32,7 @@ from .document import (
     empty_document,
     get,
     lane_revision,
+    migration_patch,
     snapshot_catalog,
 )
 from .errors import Conflict, Denied, LaneNotOwned, Locked, NotFound, RoomFull, SpecInvalid
@@ -41,6 +42,14 @@ from .roles import COLORS, Role
 
 OnCommit = Callable[[LogRow], None]
 MAX_SEATS = 4
+
+
+def _pin_seen_by(pin: dict[str, Any], viewer: str) -> bool:
+    return pin.get("owner") == viewer or viewer in (pin.get("shares") or {})
+
+
+def _without_pins(doc: Doc) -> Doc:
+    return {k: v for k, v in doc.items() if k != "pins"}
 
 
 def locked[**P, R](fn: Callable[P, R]) -> Callable[P, R]:
@@ -150,7 +159,9 @@ class RoomCore:
             raise Denied(f"role {role!r} is not supplied by an active room plugin")
         stored = self.read("roleDefaults", role)
         return (
-            AgentConfig.model_validate(stored) if stored else AgentConfig(autonomy=Autonomy.SUGGEST)
+            AgentConfig.model_validate(stored)
+            if stored
+            else AgentConfig(autonomy=seat_defaults.NEW_SEAT_AUTONOMY)
         )
 
     @locked
@@ -160,14 +171,95 @@ class RoomCore:
         if patch:
             self._commit(Actor.person(pid), "plugin.activated", patch, {"plugin": plugin_id})
 
-    def snapshot(self) -> Doc:
+    @locked
+    def migrate_plugins(self, pid: str) -> dict[str, Any]:
+        """The room owner moves the room to the plugin releases installed now (see
+        ``migration_patch``). Returns what changed, by entry point."""
+        self._require_seat(pid)
+        patch, changed = migration_patch(self._doc)
+        if patch:
+            self._commit(Actor.person(pid), "plugin.migrated", patch, {"changed": changed})
+        return changed
+
+    def plugin_updates(self, pid: str) -> dict[str, Any]:
+        """What ``migrate_plugins`` would change now, by entry point, without changing anything:
+        the same comparison of the room's package pins (version and digest) with the installed
+        releases. Any seat may ask; only the owner may migrate."""
+        self._require_seat(pid)
         with self._lock:
-            return snapshot_catalog(self._doc)
+            _patch, changed = migration_patch(self._doc)
+        return changed
+
+    def snapshot(self) -> Doc:
+        """The shared document. Pinned views are per person, so they are left out here; use
+        ``snapshot_for`` for what one seat may see."""
+        with self._lock:
+            return _without_pins(snapshot_catalog(self._doc))
 
     def snapshot_at(self) -> tuple[Doc, int]:
-        """The document and the log seq it reflects, taken together."""
+        """The shared document (no pinned views) and the log seq it reflects, together."""
         with self._lock:
-            return snapshot_catalog(self._doc), self._seq
+            return _without_pins(snapshot_catalog(self._doc)), self._seq
+
+    def snapshot_for(self, viewer: str) -> tuple[Doc, int]:
+        """The document and seq for one seat: the shared part, plus the pinned views the seat
+        owns or was shared. Another seat's unshared pin is never in it."""
+        with self._lock:
+            doc = snapshot_catalog(self._doc)
+            pins = {
+                pid: pin
+                for pid, pin in cast(dict[str, dict[str, Any]], doc.get("pins") or {}).items()
+                if _pin_seen_by(pin, viewer)
+            }
+            out = _without_pins(doc)
+            if "pins" in doc:
+                out["pins"] = pins
+            return out, self._seq
+
+    def patch_for(self, patch: list[dict[str, Any]], viewer: str, meta: dict[str, Any]) -> Patch:
+        """A committed row's patch as one seat may see it, called after the row is applied.
+        Ops on a pin the seat neither owns nor was shared are dropped. A seat just shared a pin
+        gets the whole record, since it never received the add."""
+        with self._lock:
+            pins = cast(dict[str, dict[str, Any]], get(self._doc, "pins") or {})
+            out: Patch = []
+            handed: set[str] = set()
+            for op in patch:
+                parts = str(op.get("path", "")).split("/")
+                if parts[1:2] == ["pins"] and len(parts) == 2:
+                    value = cast(Any, op.get("value"))
+                    if isinstance(value, dict):
+                        seen = {
+                            k: v
+                            for k, v in cast(dict[str, Any], value).items()
+                            if _pin_seen_by(v, viewer)
+                        }
+                        out.append(cast(Any, {**op, "value": seen}))
+                    continue
+                if len(parts) < 3 or parts[1] != "pins":
+                    out.append(cast(Any, op))
+                    continue
+                pid = parts[2].replace("~1", "/").replace("~0", "~")
+                pin = pins.get(pid)
+                if pin is None:
+                    # The pin is gone; a removal carries only its id.
+                    if op.get("op") == "remove" and len(parts) == 3:
+                        out.append(cast(Any, op))
+                    continue
+                if not _pin_seen_by(pin, viewer):
+                    continue
+                if viewer in (meta.get("recipients") or []) and viewer != pin.get("owner"):
+                    if pid not in handed:
+                        handed.add(pid)
+                        out.append(
+                            cast(
+                                Any,
+                                {"op": "add", "path": pointer("pins", pid), "value": pin},
+                            )
+                        )
+                    continue
+                out.append(cast(Any, op))
+            return out
 
     def read(self, *path: str) -> Any:
         with self._lock:
@@ -281,28 +373,60 @@ class RoomCore:
 
     # lanes -----------------------------------------------------------------------------
     @locked
-    def claim_lane(self, pid: str, case: str, lane: str, op_id: str | None = None) -> LogRow:
+    def claim_lane(
+        self,
+        pid: str,
+        case: str,
+        lane: str,
+        op_id: str | None = None,
+        *,
+        actor: Actor | None = None,
+    ) -> LogRow:
+        """``pid`` takes a free lane. ``actor`` is the agent that asked when a confirm card made
+        the person approve it: the row then records ``requestedBy`` (agent) and ``approvedBy``
+        (person). Callers that pass no actor commit as the person, as before."""
         self._require_seat(pid)
         self._lane_def(case, lane)
+        who, extra = self._lane_actor(pid, actor)
         owner = self.read("lanes", case, lane)
         if owner == pid:
-            return self.note(Actor.person(pid), "lane.claim.noop", {"case": case, "lane": lane})
+            return self.note(who, "lane.claim.noop", {"case": case, "lane": lane, **extra})
         if owner is not None:
             raise Conflict(f"lane {case}/{lane} is owned by {owner}")
         patch: Patch = [{"op": "replace", "path": pointer("lanes", case, lane), "value": pid}]
         patch += self._transfer_pending(case, lane, pid)
-        meta = {"case": case, "lane": lane}
-        return self._commit(Actor.person(pid), "lane.claim", patch, meta, op_id)[0]
+        meta = {"case": case, "lane": lane, **extra}
+        return self._commit(who, "lane.claim", patch, meta, op_id)[0]
 
     @locked
-    def release_lane(self, pid: str, case: str, lane: str, op_id: str | None = None) -> LogRow:
+    def release_lane(
+        self,
+        pid: str,
+        case: str,
+        lane: str,
+        op_id: str | None = None,
+        *,
+        actor: Actor | None = None,
+    ) -> LogRow:
+        """The owner gives a lane up; ``actor`` as in ``claim_lane``."""
         self._lane_def(case, lane)
+        who, extra = self._lane_actor(pid, actor)
         if self.read("lanes", case, lane) != pid:
             raise Denied(f"only the owner releases lane {case}/{lane}")
         patch: Patch = [{"op": "replace", "path": pointer("lanes", case, lane), "value": None}]
         patch += self._transfer_pending(case, lane, None)
-        meta = {"case": case, "lane": lane}
-        return self._commit(Actor.person(pid), "lane.release", patch, meta, op_id)[0]
+        meta = {"case": case, "lane": lane, **extra}
+        return self._commit(who, "lane.release", patch, meta, op_id)[0]
+
+    @staticmethod
+    def _lane_actor(pid: str, actor: Actor | None) -> tuple[Actor, dict[str, Any]]:
+        """Who commits a lane change and the meta naming both parties. An agent may act only for
+        its own person."""
+        if actor is None or actor.kind == "person":
+            return Actor.person(pid), {}
+        if actor.kind != "personal_agent" or actor.owner != pid:
+            raise Denied("an agent claims or releases lanes only for its own person")
+        return actor, {"requestedBy": actor.id, "approvedBy": pid}
 
     def take_role_lanes(self, pid: str) -> LogRow | None:
         """On joining, a person takes the lanes their role owns by default, in every studio:
@@ -422,6 +546,12 @@ class RoomCore:
         """The drawer. Only the agent's owner changes it, and the change is logged (FR-AG-1)."""
         if self.agent(aid).get("owner") != pid:
             raise Denied("only an agent's owner configures it")
+        # A new provider or model must be a real pair (explicit model, matching maker). A drawer
+        # edit that leaves the pair alone, such as a seat saved before models were explicit,
+        # is not held up by it.
+        before = self.agent_config(aid)
+        if (before.model_provider, before.model_name) != (config.model_provider, config.model_name):
+            seat_defaults.validate_agent_model(config.model_provider, config.model_name)
         patch: Patch = [
             {
                 "op": "replace",

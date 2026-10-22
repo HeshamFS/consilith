@@ -7,24 +7,29 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from consilith_contracts import (
+    AdHocPlan,
     AgentConfig,
     Autonomy,
+    ChatTurn,
     Decision,
     LedgerEntry,
     Lesson,
     MemoryScope,
     PatchOp,
+    PendingActionKind,
     Proposal,
     ProposalStatus,
     ResultRecord,
     ResultStatus,
     Stamp,
     Tier,
+    TurnRole,
     WarningFlag,
     new_id,
+    pending_action_digest,
 )
 from consilith_contracts.results import ArtifactRef, OutputKind, result_binding_digest
 from pydantic import JsonValue
@@ -36,10 +41,36 @@ from .errors import Conflict, Denied, NotFound, RoomError
 from .gate import authorize_twin_patch
 from .lessons import rule_from_reason
 from .paths import pointer, twin_lane
-from .room import RoomCore, locked
+from .peers import PeerRoom
+from .plugin_access import room_pins
+from .room import locked
 
 Verifier = Callable[[LedgerEntry], bool]
 RUN_ACTIVE = "running"
+# How long a minted run grant stays usable. A run starts right after the person approves; a
+# queued job gets a fresh grant when the worker takes it, after its digest is checked again.
+GRANT_TTL_S = 15 * 60
+LESSON_ROOM_KEY = "room"  # the room a stored personal lesson was taught in (absent: legacy)
+
+
+def run_card_args(case: str, mode: str) -> dict[str, str]:
+    """The resolved arguments of a ``run.start`` card. They are the same for the card and for
+    the recomputation that checks a grant, so the digest can be rebuilt from the run alone."""
+    return {"capability": case, "case": case, "mode": mode}
+
+
+def split_lesson(raw: dict[str, Any]) -> tuple[Lesson, str | None]:
+    """A stored personal lesson and the room it was taught in (None for a legacy one)."""
+    body = {k: v for k, v in raw.items() if k != LESSON_ROOM_KEY}
+    tag = raw.get(LESSON_ROOM_KEY)
+    return Lesson.model_validate(body), tag if isinstance(tag, str) and tag else None
+
+
+MAX_PINS_PER_PERSON = 12
+MAX_PINS_PER_ROOM = 40
+MAX_SHARE_RECIPIENTS = 3  # a room seats four, and the owner is one of them
+_PIN_HANDLE_KINDS = frozenset({"result", "input", "artifact", "run", "proposal"})
+_PIN_HANDLE_FIELDS = ("kind", "id", "label", "unit", "case", "lane", "output")
 
 
 def result_digest(
@@ -55,7 +86,7 @@ def result_digest(
     return result_binding_digest(quantity, value, unit, run_id, manifest, artifacts, kind=kind)
 
 
-class RoomService(RoomCore):
+class RoomService(PeerRoom):
     # proposals (FR-MP-3, FR-LOOP-7) ----------------------------------------------------
     @locked
     def propose(
@@ -211,7 +242,15 @@ class RoomService(RoomCore):
         if lesson_rule is None and not accept:
             last = twin_lane(prop.patch[0].path, self.case_definitions()).rest
             lesson_rule = rule_from_reason(reason, last[0]) if last else None
-        lesson = self._lesson(prop, decision, lesson_rule)
+        # A proposal a peer message caused teaches its author nothing unless the author's owner
+        # opted in (decision 20): the decider's reason text must not reach that agent's memory.
+        teaches = self.peer_lesson_allowed(prop_id, prop.on_behalf_of)
+        # Approving your own agent's proposal teaches it nothing (a one-tap confirm).
+        lesson = (
+            None
+            if not teaches or (accept and prop.on_behalf_of == person)
+            else self._lesson(prop, decision, lesson_rule)
+        )
         ops += [
             {
                 "op": "replace",
@@ -237,11 +276,16 @@ class RoomService(RoomCore):
             "reason": reason,
             "lane": f"{prop.case}/{prop.target_lane}",
             "evidence": prop.evidence,
-            "lesson": {"id": lesson.id, "holder": lesson.holder, "text": lesson.text},
         }
+        if lesson is not None:
+            meta["lesson"] = {"id": lesson.id, "holder": lesson.holder, "text": lesson.text}
         if failure:
             meta["failure"] = failure
-        lessons = [(prop.on_behalf_of, lesson.id, lesson.wire())]
+        lessons = (
+            None
+            if lesson is None
+            else [(prop.on_behalf_of, lesson.id, {**lesson.wire(), LESSON_ROOM_KEY: self.id})]
+        )
         row, fresh = self._commit(
             Actor.person(person),
             "proposal.decide",
@@ -358,8 +402,13 @@ class RoomService(RoomCore):
 
     # memory (FR-MEM-*) -----------------------------------------------------------------
     def personal_lessons(self, person: str) -> list[Lesson]:
-        lessons = (Lesson.model_validate(x) for x in self.store.lessons(person))
-        return [les for les in lessons if not les.deleted]
+        """Every personal lesson of this person, from any room (their own memory page)."""
+        out: list[Lesson] = []
+        for raw in self.store.lessons(person):
+            les, _tag = split_lesson(raw)
+            if not les.deleted:
+                out.append(les)
+        return out
 
     @locked
     def edit_personal_lesson(
@@ -367,13 +416,21 @@ class RoomService(RoomCore):
     ) -> None:
         for raw in self.store.lessons(person):
             if raw["id"] == lesson_id:
-                les = Lesson.model_validate(raw)
+                les, tag = split_lesson(raw)
                 les = les.model_copy(update={"deleted": delete, "text": text or les.text})
-                self.store.put_lesson(person, lesson_id, les.wire())
+                body = {**les.wire(), **({LESSON_ROOM_KEY: tag} if tag else {})}
+                self.store.put_lesson(person, lesson_id, body)
                 kind = "memory.delete" if delete else "memory.edit"
                 self.note(Actor.person(person), kind, {"scope": "personal", "lesson": lesson_id})
                 return
         raise NotFound(f"no lesson {lesson_id} for {person}")
+
+    def _lesson_actor(self, person: str, actor: Actor | None) -> tuple[Actor, dict[str, Any]]:
+        """Who commits a lesson, and the meta that records both parties: the person alone, or an
+        agent that asked with the person who approved."""
+        if actor is None or actor.kind == "person":
+            return Actor.person(person), {}
+        return actor, {"requestedBy": actor.id, "approvedBy": person}
 
     @locked
     def add_shared_lesson(
@@ -384,8 +441,20 @@ class RoomService(RoomCore):
         case: str | None = None,
         lane: str | None = None,
         rule: dict[str, Any] | None = None,
+        *,
+        actor: Actor | None = None,
+        op_id: str | None = None,
     ) -> Lesson:
+        """A room or case lesson. ``actor`` is the agent that asked, when a confirm card made
+        the person approve it: the row then records ``requestedBy`` and ``approvedBy``."""
         self._require_seat(person)
+        who, extra = self._lesson_actor(person, actor)
+        if op_id is not None:
+            prior = self.existing_op(who, op_id)
+            if prior is not None:
+                found = self._shared_lesson(str(prior.meta.get("lesson", "")))
+                if found is not None:
+                    return found
         if scope == MemoryScope.CASE:
             owner = self.lane_owners().get(case or "", {}).get(lane or "")
             if case is None or lane is None or owner != person:
@@ -406,21 +475,97 @@ class RoomService(RoomCore):
             rule=rule,
         )
         ops: Patch = [{"op": "add", "path": pointer(*path, les.id), "value": les.wire()}]
-        meta = {"scope": scope.value, "lesson": les.id}
-        self._commit(Actor.person(person), "memory.add", ops, meta)
+        meta = {"scope": scope.value, "lesson": les.id, **extra}
+        self._commit(who, "memory.add", ops, meta, op_id)
         return les
 
-    def lessons_for(self, aid: str) -> list[Lesson]:
-        """What an agent consults before proposing: its personal lessons plus room and case."""
-        node = self.agent(aid)
-        out = self.personal_lessons(cast(str, node["owner"])) if node.get("owner") else []
-        out = [les for les in out if les.holder == aid]
+    def _shared_lesson(self, lesson_id: str) -> Lesson | None:
         for scope in ("room", "case"):
-            for raw in cast(dict[str, Any], self.read("memory", scope) or {}).values():
+            raw = cast(dict[str, Any], self.read("memory", scope) or {}).get(lesson_id)
+            if raw is not None:
+                return Lesson.model_validate(raw)
+        return None
+
+    @locked
+    def add_personal_note(
+        self,
+        person: str,
+        text: str,
+        *,
+        actor: Actor | None = None,
+        op_id: str | None = None,
+    ) -> Lesson:
+        """A note the person keeps for their own agent in this room (class A: they wrote or
+        approved it). It is stored with its room, so no other room's agent reads it."""
+        self._require_seat(person)
+        who, extra = self._lesson_actor(person, actor)
+        if op_id is not None:
+            prior = self.existing_op(who, op_id)
+            if prior is not None:
+                for les in self.personal_lessons(person):
+                    if les.id == prior.meta.get("lesson"):
+                        return les
+        les = Lesson(
+            id=new_id("les"),
+            scope=MemoryScope.PERSONAL,
+            holder=agent_id(person),
+            text=text,
+            taught_by=person,
+            reason=text,
+            ts=time.time(),
+        )
+        self.store.put_lesson(person, les.id, {**les.wire(), LESSON_ROOM_KEY: self.id})
+        self._commit(who, "memory.add", [], {"scope": "personal", "lesson": les.id, **extra}, op_id)
+        return les
+
+    def lessons_with_origin(
+        self, aid: str, scope: Literal["room", "all"] = "room"
+    ) -> list[tuple[Lesson, str | None]]:
+        """What an agent consults, with the room each personal lesson was taught in. ``room``
+        (the default) is this room's personal lessons plus its room and case lessons. ``all``
+        adds the personal lessons of other rooms and the legacy untagged ones (origin None)."""
+        node = self.agent(aid)
+        out: list[tuple[Lesson, str | None]] = []
+        if node.get("owner"):
+            for raw in self.store.lessons(cast(str, node["owner"])):
+                les, tag = split_lesson(raw)
+                if les.deleted or les.holder != aid:
+                    continue
+                if tag == self.id or scope == "all":
+                    out.append((les, tag))
+        for kind in ("room", "case"):
+            for raw in cast(dict[str, Any], self.read("memory", kind) or {}).values():
                 les = Lesson.model_validate(raw)
                 if not les.deleted:
-                    out.append(les)
+                    out.append((les, self.id))
         return out
+
+    def chat_rows(
+        self,
+        person: str,
+        roles: tuple[TurnRole, ...],
+        limit: int,
+        *,
+        before_seq: int | None = None,
+    ) -> list[ChatTurn]:
+        """The person's latest ``limit`` chat rows of the given roles, oldest first. Tool rows
+        sit between user rows, so a plain "last N rows" read can lose the turns that matter;
+        this reads further back until it has enough of the wanted roles or runs out of rows."""
+        fetch = max(limit * 4, 40)
+        while True:
+            rows = self.store.chat_turns.last(self.id, person, fetch)
+            picked = [
+                t for t in rows if t.role in roles and (before_seq is None or t.seq < before_seq)
+            ]
+            if len(picked) >= limit or len(rows) < fetch:
+                return picked[-limit:] if limit > 0 else []
+            fetch *= 4
+
+    def lessons_for(self, aid: str, scope: Literal["room", "all"] = "room") -> list[Lesson]:
+        """What an agent consults before proposing: this room's personal lessons plus room and
+        case. Lessons taught in another room, and legacy untagged ones, come only with
+        ``scope="all"`` (``lessons.recall``), which marks them."""
+        return [les for les, _tag in self.lessons_with_origin(aid, scope)]
 
     # runs and results (FR-LOOP-5, NFR-6, revisions) ------------------------------------
     @locked
@@ -435,16 +580,28 @@ class RoomService(RoomCore):
         estimate_s: float = 0.0,
         run_id: str | None = None,
         input_revisions: dict[str, str] | None = None,
+        job_id: str | None = None,
     ) -> str:
         """Admit a solve. The requesting agent's drawer is enforced here, for hosted and
-        brought agents alike: autonomy, the tool allowlist and the compute budget."""
+        brought agents alike: autonomy, the tool allowlist and the compute budget. A valid run
+        grant (a card the person approved, still matching the inputs) skips only the autonomy
+        test. ``job_id`` joins the run to the job that started it."""
         if actor.id != "conductor":
             raise Denied("only the conductor runs solvers")
         self.require_ready(case)
+        granted = False
         if requester.kind == "personal_agent":
             cfg: AgentConfig = self.agent_config(requester.id)
-            if cfg.autonomy != Autonomy.RUN_SOLVERS:
-                raise Denied(f"{requester.id} may not run solvers (autonomy {cfg.autonomy.value})")
+            granted = self.run_grant_valid(requester, case)
+            if cfg.autonomy != Autonomy.RUN_SOLVERS and not granted:
+                raise Denied(
+                    f"{requester.id} may not run solvers (autonomy {cfg.autonomy.value})"
+                    + (
+                        "; the approval no longer matches the inputs"
+                        if requester.grant is not None
+                        else ""
+                    )
+                )
             if not cfg.tool_allowed(tool):
                 raise Denied(f"{requester.id} may not call {tool}")
             if tier < 2 and estimate_s > cfg.compute_budget_s:
@@ -480,9 +637,48 @@ class RoomService(RoomCore):
             "openedSeq": self.seq + 1,
             "started": time.time(),
         }
+        meta: dict[str, Any] = {"run": rid, "tool": tool, "tier": tier}
+        if job_id is not None:
+            run["jobId"] = job_id
+            meta["job"] = job_id
+        if requester.kind == "personal_agent":
+            meta["requestedBy"] = requester.id
+        if granted and requester.grant is not None:
+            run["approvedBy"] = requester.grant.approved_by
+            run["approvalDigest"] = requester.grant.digest
+            meta["approvedBy"] = requester.grant.approved_by
         ops: Patch = [{"op": "add", "path": pointer("runs", rid), "value": run}]
-        self._commit(actor, "run.open", ops, {"run": rid, "tool": tool, "tier": tier})
+        self._commit(actor, "run.open", ops, meta)
         return rid
+
+    def run_card_digest(
+        self, person: str, case: str, mode: str, revisions: dict[str, str] | None = None
+    ) -> str:
+        """The digest of a ``run.start`` card for this person, case and mode over the lane
+        revisions and plugin pins as they are now (or the given revisions)."""
+        return pending_action_digest(
+            kind=PendingActionKind.CONFIRM_RUN,
+            room=self.id,
+            person=person,
+            ref="run.start",
+            mode=mode,
+            resolved_args=run_card_args(case, mode),
+            input_revisions=self.revisions(case) if revisions is None else revisions,
+            plugin_pins=room_pins(self),
+        )
+
+    def run_grant_valid(self, requester: Actor, case: str, now: float | None = None) -> bool:
+        """Whether the requester carries a run grant for this case that is still good: minted
+        for the same person, not expired, and its digest matches a recomputation over the
+        current lane revisions and plugin pins. Nothing but a confirm card mints one."""
+        grant = requester.grant
+        if grant is None or grant.kind != "run" or grant.case != case:
+            return False
+        if grant.approved_by != requester.person_id:
+            return False
+        if grant.expired(time.time() if now is None else now):
+            return False
+        return grant.digest == self.run_card_digest(grant.approved_by, case, grant.mode)
 
     def run(self, rid: str) -> dict[str, Any]:
         node = self.read("runs", rid)
@@ -602,7 +798,7 @@ class RoomService(RoomCore):
         runs) are no longer current; results of newer runs are left alone."""
         if actor.id != "conductor":
             raise Denied("only the conductor records solver failures")
-        if status not in ("failed", "timeout"):
+        if status not in ("failed", "timeout", "cancelled"):
             raise Denied(f"bad failure status {status}")
         run = self.run(rid)
         if run["status"] != RUN_ACTIVE:
@@ -776,6 +972,179 @@ class RoomService(RoomCore):
         op = "replace" if self.read("tensions", tid, key) is not None else "add"
         ops: Patch = [{"op": op, "path": pointer("tensions", tid, key), "value": value}]
         self._commit(actor, "tension.update", ops, {"tension": tid, "key": key})
+
+    # pinned surfaces (BUILD_SPEC section 8: pin, share, refresh) -----------------------
+    # A pin keeps the refs-only plan, never a number, and the handles it names resolved to
+    # stable ids (a handle name such as ``r1`` means something else on the next turn). The
+    # bound surface is rebuilt from this record whenever it is published or refreshed.
+    @locked
+    def pin_surface(
+        self,
+        actor: Actor,
+        plan: dict[str, Any],
+        handles: dict[str, dict[str, Any]],
+        origin: dict[str, Any],
+        *,
+        source: str = "",
+        op_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Persist an ad-hoc plan for its owner. ``handles`` maps each handle name the plan
+        uses to what it stands for; the record keeps those and no others. Returns the pin.
+        Called by the ``ui.pin`` op after the person confirmed the card."""
+        owner = self._pin_actor(actor)
+        if op_id is not None:
+            prior = self.existing_op(actor, op_id)
+            if prior is not None:
+                return self.pin(cast(str, prior.meta["pin"]))
+        parsed = AdHocPlan.model_validate(plan)
+        used = list(dict.fromkeys(ref for block in parsed.blocks for ref in block.refs))
+        kept: dict[str, dict[str, Any]] = {}
+        for name in used:
+            handle = handles.get(name)
+            if handle is None:
+                raise RoomError(f"the plan names {name!r}, which is not a handle", code="no_handle")
+            if handle.get("kind") not in _PIN_HANDLE_KINDS or not isinstance(handle.get("id"), str):
+                raise RoomError(f"{name!r} is not a handle that can be pinned", code="bad_handle")
+            kept[name] = {
+                key: handle[key]
+                for key in _PIN_HANDLE_FIELDS
+                if isinstance(handle.get(key), str) and handle[key] != ""
+            }
+        pins = cast(dict[str, dict[str, Any]], self.read("pins") or {})
+        if len(pins) >= MAX_PINS_PER_ROOM:
+            raise RoomError(
+                f"the room holds at most {MAX_PINS_PER_ROOM} pinned views", code="limit"
+            )
+        if sum(1 for p in pins.values() if p.get("owner") == owner) >= MAX_PINS_PER_PERSON:
+            raise RoomError(
+                f"a person pins at most {MAX_PINS_PER_PERSON} views; unpin one first", code="limit"
+            )
+        cases = list(dict.fromkeys(h["case"] for h in kept.values() if h.get("case")))
+        lanes = list(
+            dict.fromkeys(
+                f"{h['case']}/{h['lane']}" for h in kept.values() if h.get("case") and h.get("lane")
+            )
+        )
+        pin_id = new_id("pin")
+        record: dict[str, Any] = {
+            "id": pin_id,
+            "owner": owner,
+            "title": parsed.title,
+            "plan": parsed.wire(),
+            "handles": kept,
+            "origin": {k: str(v) for k, v in origin.items() if isinstance(v, str)},
+            "case": cases[0] if cases else str(self.read("room", "activeCase") or ""),
+            "lanes": lanes,
+            "source": source,
+            "pinnedSeq": self.seq + 1,
+            "refreshedSeq": self.seq + 1,
+            "shares": {},
+        }
+        ops: Patch = []
+        if self.read("pins") is None:
+            ops.append({"op": "add", "path": "/pins", "value": {}})
+        ops.append({"op": "add", "path": pointer("pins", pin_id), "value": record})
+        self._commit(actor, "surface.pin", ops, {"pin": pin_id, "owner": owner}, op_id)
+        return record
+
+    def pin(self, pin_id: str) -> dict[str, Any]:
+        node = self.read("pins", pin_id)
+        if node is None:
+            raise NotFound(f"no pinned view {pin_id}")
+        return cast(dict[str, Any], node)
+
+    def pins_of(self, person: str) -> list[dict[str, Any]]:
+        """The views a person owns or was shared, oldest first."""
+        pins = cast(dict[str, dict[str, Any]], self.read("pins") or {})
+        mine = [
+            p
+            for p in pins.values()
+            if p.get("owner") == person or person in (p.get("shares") or {})
+        ]
+        return sorted(mine, key=lambda p: int(p.get("pinnedSeq", 0)))
+
+    @locked
+    def unpin_surface(self, actor: Actor, pin_id: str, op_id: str | None = None) -> None:
+        owner = self._pin_actor(actor)
+        if self.read("pins", pin_id) is None:
+            return
+        if self.pin(pin_id)["owner"] != owner:
+            raise Denied("only the person who pinned a view takes it down")
+        self._commit(
+            actor,
+            "surface.unpin",
+            [{"op": "remove", "path": pointer("pins", pin_id)}],
+            {"pin": pin_id},
+            op_id,
+        )
+
+    @locked
+    def mark_pin_refreshed(self, actor: Actor, pin_id: str, op_id: str | None = None) -> int:
+        """Record that the stored refs were bound again against the room as it is now. Returns
+        the seq the pin now reflects. Any seated person may refresh a view they can see."""
+        person = self._pin_actor(actor)
+        pin = self.pin(pin_id)
+        if person != pin["owner"] and person not in (pin.get("shares") or {}):
+            raise Denied("that view is not yours or shared with you")
+        seq = self.seq + 1
+        ops: Patch = [
+            {"op": "replace", "path": pointer("pins", pin_id, "refreshedSeq"), "value": seq}
+        ]
+        self._commit(actor, "surface.refresh", ops, {"pin": pin_id}, op_id)
+        return seq
+
+    @locked
+    def share_surface(
+        self,
+        actor: Actor,
+        pin_id: str,
+        recipients: list[str],
+        op_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Share a pinned view with named, seated people. Returns one entry per recipient,
+        ``{"recipient", "editable"}``, for the caller to journal once each. A recipient may edit
+        through the view only when they own every lane it shows; otherwise it is read only.
+        Called by the ``ui.share`` op after the person confirmed the card."""
+        owner = self._pin_actor(actor)
+        pin = self.pin(pin_id)
+        if pin["owner"] != owner:
+            raise Denied("only the person who pinned a view shares it")
+        names = list(dict.fromkeys(recipients))
+        if not names:
+            raise RoomError("name at least one person to share with", code="no_recipient")
+        if len(names) > MAX_SHARE_RECIPIENTS:
+            raise RoomError(f"share with at most {MAX_SHARE_RECIPIENTS} people", code="limit")
+        lanes = [str(ln) for ln in pin.get("lanes", [])]
+        owners = self.lane_owners()
+        entries: list[dict[str, Any]] = []
+        for name in names:
+            if name == owner:
+                raise RoomError("the view is already yours", code="self_share")
+            self._require_seat(name)
+            editable = bool(lanes) and all(
+                (owners.get(ln.split("/", 1)[0]) or {}).get(ln.split("/", 1)[1]) == name
+                for ln in lanes
+            )
+            entries.append({"recipient": name, "editable": editable})
+        seq = self.seq + 1
+        ops: Patch = []
+        for entry in entries:
+            path = pointer("pins", pin_id, "shares", entry["recipient"])
+            op = "replace" if self.read("pins", pin_id, "shares", entry["recipient"]) else "add"
+            ops.append(
+                {"op": op, "path": path, "value": {"editable": entry["editable"], "seq": seq}}
+            )
+        meta = {"pin": pin_id, "recipients": [e["recipient"] for e in entries]}
+        self._commit(actor, "surface.share", ops, meta, op_id)
+        return entries
+
+    def _pin_actor(self, actor: Actor) -> str:
+        """The person a pin or share is for. Room agents and the backend never pin."""
+        person = actor.person_id
+        if actor.kind not in ("person", "personal_agent") or person is None:
+            raise Denied("only a person, or their own agent for them, pins and shares views")
+        self._require_seat(person)
+        return person
 
 
 def personal_agent_for(person: str) -> str:
