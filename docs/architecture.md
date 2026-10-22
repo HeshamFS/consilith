@@ -1,23 +1,44 @@
-# Platform and plugin boundaries
+# Architecture
 
-The platform owns identity, permissions, shared-state revisions, ownership, proposals, execution admission, result storage, signed evidence and UI primitives. Plugins own task schemas, methods, workflows, validation policies, skills and knowledge.
+Consilith separates the **platform**, which is the same for every science, from **plugins**, which carry a domain.
 
-Plugin implementations run in isolated worker processes or containers. MCP tool services run independently of the worker. Room and referee images contain contracts and transport, not installed task implementations. A worker receives explicit host ports; it cannot obtain arbitrary room storage, signing keys or model credentials through the contract.
+| The platform owns | A plugin owns |
+|---|---|
+| accounts, rooms, seats and lane ownership | capabilities (cases), lanes and input fields |
+| proposals, approvals and permissions | workflows and the tools they call (over MCP) |
+| personal agents and the tool loop | skills, knowledge and agent instructions |
+| runs, the job queue and stored results | checks, replay tolerances and reports |
+| the referee and signed evidence | apps and reports shown in the workspace |
+| the generative UI catalog | presentation hints for its fields and results |
 
-## Results and evidence
+## Services
 
-The versioned result envelope supports number, text, category, JSON and artifact outputs. Nonnumeric results do not require quantities. Input revisions, implementation identities, typed payloads and artifact hashes are bound to review evidence. The referee operator selects checking capabilities. Replay applies numeric tolerances only to numbers and compares other payloads and files by canonical identity.
+| Service | Role |
+|---|---|
+| `room` | API, shared room document, agents, runs and storage |
+| `referee` | independently configured checks; signs evidence |
+| `web` | gateway and the React workspace |
+| `siwc` | Sign in with ChatGPT bridge |
+| plugin worker | runs a plugin's workflow code through narrow host ports |
+| plugin MCP servers | run the plugin's tools |
 
-The starter uses canonical JSON file bytes so transport normalization of `1` to `1.0` does not change a file. A boolean remains distinct from a number. Task values come from registered tools, not generated prose.
+Plugin code never runs inside the room, referee or web images. A worker gets explicit host ports; it cannot reach room storage, signing keys or anyone's model key.
 
-## Workspace composition
+## How a result is made
 
-The agent selects approved layout and input/result components from the UI contract. Capability navigation has a separate namespace from built-in views. A descriptor preview is an explicit, labelled alternative to model composition. Plugins cannot register arbitrary browser code or silently grant themselves host authority.
+1. A person or their agent edits an input in a lane they own, or proposes a change to someone else's lane.
+2. The owner approves. Every change is a recorded, revision-checked patch.
+3. A run executes the plugin workflow from a snapshot of the inputs.
+4. Results are stored as typed records (number, text, category, JSON or artifact) with their provenance.
+5. The referee checks them with a method that did not produce them and signs the evidence.
+6. Later input changes mark old results as stale instead of overwriting them.
 
-Input controls preserve stored compatible units and acknowledge asynchronous saves. Work runs from a recorded server snapshot. Concurrent input changes make late outputs superseded; applications should wait for input-save acknowledgment before initiating dependent work.
+## Workspace
 
-## Release lifecycle
+The agent composes each person's view from the platform's component catalog: a control desk, a model space, results, evidence, charts, tables and plugin apps (self-contained HTML pages in a sandboxed frame). Plugins cannot ship browser code into the shell or grant themselves permissions. One shared layout per room and case keeps everyone on the same picture.
 
-Deployment validates service namespaces, health probes, full plugin registration and live MCP tool discovery before publishing the catalog. Candidate services have isolated endpoints while the current release remains available. Failed publication restores the previous catalog and aliases. Cleanup targets only owned unused resources and preserves data volumes.
+## Releases
 
-These are software architecture guarantees. They do not establish scientific validity, arbitrary-plugin safety, live model behavior on every provider, or native macOS/Linux/ARM qualification. Plugin authors must qualify their own methods and supported runtime platforms.
+A deployment validates every plugin (namespaces, health, registration and live MCP discovery) before publishing its catalog. Rooms pin the plugin releases they were created with; moving to a newer release is an explicit owner action. A failed publication restores the previous catalog.
+
+These are software guarantees. They do not make a plugin's science valid; each plugin documents and qualifies its own methods.
