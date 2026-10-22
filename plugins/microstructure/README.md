@@ -7,7 +7,7 @@ general micrograph interpreter.
 
 ## What works
 
-The app uses the complete native-resolution clear-grain image: upload, inspect
+The app uses the complete native-resolution micrograph: upload, inspect
 candidate segmentation and transfer diagnostics, approve the immutable result, then watch
 computed 2D grain growth. No SAM, Torch, model download or GPU is required. Cropping and
 resampling are refused by the full-image app workflow. Difficult SEM and learned
@@ -88,7 +88,7 @@ be supplied explicitly to the numerical kernel; the high-level image pipeline re
 periodic initialization rather than creating an artificial seam.
 
 The standalone kernel and MCP service work without platform services. The optional
-platform adapter described below connects the clear-grain workflow to the internal app.
+platform adapter described below connects the micrograph grain-growth workflow to the internal app.
 Independent scientific checking and generalized segmentation adapters remain future work.
 
 ## Segmentation and actual evolution (0.2.0)
@@ -142,7 +142,7 @@ for a new run while retaining the approved initial map. Both preparation and evo
 600-second accurate-tool deadline, including cold-start compilation.
 
 Use the [microstructure deployment manifest](../../examples/deployment.microstructure.json)
-from the repository root. Upload your own clear-grain image, starting with global
+from the repository root. Upload your own micrograph, starting with global
 segmentation, dark boundaries, width 4, duration 600, energy 1 and mobility 1. No crop
 field is exposed. A reviewed non-material mask can exclude a supported annotation strip
 while preserving the full source canvas. Always inspect boundaries and the mask;

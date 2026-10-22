@@ -1,0 +1,63 @@
+<script>
+(function () {
+  // Follow the host's theme and tell it how tall the page is, over the MCP Apps bridge. With no
+  // host (the file opened on its own) nothing happens and the system theme applies.
+  if (window.parent === window) return;
+  var root = document.documentElement;
+  var current = null;
+  // Our tokens switch on <html data-theme>; marimo's own page switches on a "dark" class, so set
+  // both, and put them back if marimo's own theme logic changes them.
+  function apply() {
+    if (!current) return;
+    root.setAttribute("data-theme", current);
+    root.style.colorScheme = current;
+    for (var el of [root, document.body]) {
+      if (!el) continue;
+      el.classList.toggle("dark", current === "dark");
+      el.classList.toggle("dark-theme", current === "dark");
+      el.classList.toggle("light", current === "light");
+      el.classList.toggle("light-theme", current === "light");
+    }
+  }
+  function theme(ctx) {
+    var t = ctx && ctx.theme;
+    if (t === "dark" || t === "light") { current = t; apply(); }
+  }
+  if (typeof MutationObserver === "function") {
+    var guard = new MutationObserver(function () {
+      if (!current) return;
+      var dark = current === "dark";
+      if (root.classList.contains("dark") !== dark || (document.body && document.body.classList.contains("dark") !== dark)) apply();
+    });
+    guard.observe(root, { attributes: true, attributeFilter: ["class"] });
+    document.addEventListener("DOMContentLoaded", function () {
+      if (document.body) guard.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+      apply();
+    });
+  }
+  function send(msg) { window.parent.postMessage(msg, "*"); }
+  function height() {
+    send({ jsonrpc: "2.0", method: "ui/notifications/size-changed",
+      params: { height: Math.ceil(document.documentElement.scrollHeight) } });
+  }
+  window.addEventListener("message", function (ev) {
+    if (ev.source !== window.parent) return;
+    var m = ev.data;
+    if (!m || m.jsonrpc !== "2.0") return;
+    if (m.id === 1 && m.result) {
+      theme(m.result.hostContext);
+      send({ jsonrpc: "2.0", method: "ui/notifications/initialized", params: {} });
+      height();
+    } else if (m.method === "ui/notifications/host-context-changed") {
+      theme(m.params);
+    }
+  });
+  send({ jsonrpc: "2.0", id: 1, method: "ui/initialize",
+    params: { protocolVersion: "2026-01-26", appInfo: { name: "grain-growth-report", version: "1" },
+      appCapabilities: {} } });
+  window.addEventListener("load", function () {
+    if (typeof ResizeObserver === "function") new ResizeObserver(height).observe(document.body);
+    height();
+  });
+})();
+</script>

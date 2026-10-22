@@ -1,4 +1,4 @@
-# Clear-grain showcase
+# Micrograph to phase-field grain growth
 
 This optional platform adapter accepts visible, connected grain boundaries in a single
 2D micrograph. It uses classical threshold or ridge segmentation and marker watershed,
@@ -43,3 +43,16 @@ that selection explicitly declares that the dark edge should be treated as mater
 
 
 Version 0.5.2 separates segmentation approval from evolution settings. After approving a map, duration, interface energy (gamma), and mobility can change without repeating segmentation. Each run starts from the approved map, not the preceding final state. Image, segmentation, domain-mask, and interface-width changes still require a new review. Run receipts include the executed configuration and its fingerprint. Existing rooms retain their pinned release; this source change is not an automatic room migration.
+
+Report, training set and Adaption (follow-ups to an evolution): mode `report` runs
+`microstructure.report`, a marimo notebook exported headless to one HTML page (title, the
+hypothetical and dimensionless disclaimer, free-energy, grain-count, mean-area and grain-area
+charts, the state table and a short summary). Mode `dataset` runs `microstructure.dataset`,
+which writes 40 to 200 prompt and completion rows from the run's own tables with the same
+rounding as the report, then `adaption.estimate`, which uploads the rows to Adaption Labs and
+returns a credit estimate; nothing is spent. Mode `adapt-spends-credits` runs `adaption.adapt`:
+it spends credits, adapts the rows, evaluates them and returns the score before and after, a
+table and the adapted dataset. The service refuses an estimate above `ADAPTION_MAX_CREDITS`
+(default 50), more than 200 rows, and any adapt that is not confirmed. Always estimate first.
+The report is presentation. The rows are derived and illustrative. The evaluation is the
+vendor's score of text quality, not a check of the physics, and may be skipped.

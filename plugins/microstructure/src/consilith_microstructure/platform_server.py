@@ -21,9 +21,10 @@ from PIL import Image, ImageDraw
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 from skimage.segmentation import find_boundaries
 
-from . import __version__
+from . import __version__, coarsen
 from .annotation import detect_annotation_mask
 from .data import MAX_PIXELS, GrainMap
+from .derived_tools import build_dataset, report
 from .pipeline import png_labels, reconstruct, run
 from .solver import Parameters
 from .trajectory import trajectory, trajectory_npz
@@ -45,6 +46,9 @@ class ShowcaseConfiguration(BaseModel):
     duration: float = Field(default=600.0, gt=0, le=10000)
     gamma: float = Field(default=1.0, gt=0, le=100)
     mobility: float = Field(default=1.0, gt=0, le=100)
+    # auto: a coarser grid and a duration set by the grain size (visible growth in seconds);
+    # fixed: the given duration on the native grid.
+    growth: Literal["auto", "fixed"] = "auto"
 
 
 class EvolutionParameters(BaseModel):
@@ -52,6 +56,7 @@ class EvolutionParameters(BaseModel):
     duration: float = Field(gt=0, le=10000)
     gamma: float = Field(gt=0, le=100)
     mobility: float = Field(gt=0, le=100)
+    growth: Literal["auto", "fixed"] = "auto"
 
 
 def fingerprint(source_sha256, configuration):
@@ -79,7 +84,8 @@ def envelope(tool, arguments, outputs, started, *, fields=None):
             },
             "validity": {
                 "range": (
-                    "Reviewed clear-boundary 2D images; hypothetical dimensionless "
+                    "Reviewed 2D micrographs with visible grain boundaries; hypothetical "
+                    "dimensionless "
                     "isotropic grain growth"
                 ),
                 "inside": True,
@@ -113,6 +119,39 @@ def work_estimate(grains, cfg, *, enforce=False):
         "nativeShape": list(grains.labels.shape),
         "withinEvolutionBudget": work <= WORK_BUDGET and steps <= 20000,
     }
+
+
+def auto_trajectory(grains, cfg):
+    """Visible growth in seconds: a coarser grid, a duration set by the grain size. A coarse
+    grid that cannot resolve an interior grain falls back one factor at a time."""
+    p = Parameters(1.0, cfg.width, cfg.gamma, cfg.mobility)
+    chosen = coarsen.plan(grains, gamma=cfg.gamma, mobility=cfg.mobility, dt_limit=p.dt_limit)
+    factor = chosen["factor"]
+    while True:
+        simulated = coarsen.coarse_map(grains, factor)
+        duration = (
+            coarsen.EXTENT_PER_AREA
+            * coarsen.mean_area(simulated.labels)
+            / (cfg.mobility * cfg.gamma)
+        )
+        try:
+            arrays, report = trajectory(
+                simulated,
+                cfg.width,
+                duration,
+                gamma=cfg.gamma,
+                mobility=cfg.mobility,
+                frame_count=FRAME_COUNT,
+                allow_unresolved_boundary=True,
+            )
+            break
+        except ValueError:
+            if factor == 1:
+                raise
+            factor -= 1
+    coarsen.to_native(arrays, report, factor, grains)
+    report["growthPlan"] = {**chosen, "factor": factor, "duration": duration, "mode": "auto"}
+    return arrays, report
 
 
 def png(image):
@@ -159,7 +198,7 @@ def preview(raw, grains, crop):
 
 
 def prepare_showcase(image_base64: str, configuration: dict[str, Any]) -> dict[str, Any]:
-    """Segment a supplied clear-grain image; show source, boundary overlay and transfer gates."""
+    """Segment a supplied micrograph; show source, boundary overlay and transfer gates."""
     started = time.perf_counter()
     if len(image_base64) > 14_000_000:
         raise ValueError("Encoded image exceeds showcase budget")
@@ -348,15 +387,18 @@ def evolve_showcase(
         raise ValueError(
             "Reviewed map failed transfer gates; correct segmentation before evolution"
         )
-    work_estimate(grains, cfg, enforce=True)
-    arrays, report = trajectory(
-        grains,
-        cfg.width,
-        cfg.duration,
-        gamma=cfg.gamma,
-        mobility=cfg.mobility,
-        frame_count=FRAME_COUNT,
-    )
+    if cfg.growth == "auto":
+        arrays, report = auto_trajectory(grains, cfg)
+    else:
+        work_estimate(grains, cfg, enforce=True)
+        arrays, report = trajectory(
+            grains,
+            cfg.width,
+            cfg.duration,
+            gamma=cfg.gamma,
+            mobility=cfg.mobility,
+            frame_count=FRAME_COUNT,
+        )
     report["parameterBasis"] = (
         "User-reviewed hypothetical dimensionless showcase; no experimental kinetics claim"
     )
@@ -502,12 +544,14 @@ def build_server():
         "consilith-microstructure-platform",
         version=implementation_identity(__file__, __version__),
         instructions=(
-            "Prepare uploaded clear-grain images; require human review before evolution. "
+            "Prepare uploaded micrographs; require human review before evolution. "
             "All kinetics are hypothetical dimensionless scenarios; no SAM."
         ),
     )
     server.tool(name="microstructure.prepare_showcase")(prepare_showcase)
     server.tool(name="microstructure.evolve_showcase")(evolve_showcase)
+    server.tool(name="microstructure.report")(report)
+    server.tool(name="microstructure.dataset")(build_dataset)
     return server
 
 
