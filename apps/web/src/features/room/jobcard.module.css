@@ -1,0 +1,167 @@
+/* The job card: one calm block per long run. Colours come from the Consilith tokens, so light
+   and dark need no rules of their own. Sized for a 460 px chat column. */
+.job {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px 16px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+
+.job[data-status="failed"] {
+  border-color: var(--bad-fg);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.chip {
+  padding: 2px 10px;
+  border-radius: var(--r-pill);
+  background: var(--wait-bg);
+  color: var(--wait-fg);
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.chip[data-status="done"] {
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+
+.chip[data-status="failed"] {
+  background: var(--bad-bg);
+  color: var(--bad-fg);
+}
+
+.bar {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 8px;
+  border: 0;
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  background: var(--surface-3);
+  color: var(--ink);
+}
+
+.bar::-webkit-progress-bar {
+  background: var(--surface-3);
+}
+
+.bar::-webkit-progress-value {
+  background: var(--ink);
+  border-radius: var(--r-pill);
+  transition: width 0.6s ease;
+}
+
+.bar::-moz-progress-bar {
+  background: var(--ink);
+  border-radius: var(--r-pill);
+}
+
+.job[data-status="done"] .bar::-webkit-progress-value {
+  background: var(--ok-fg);
+}
+
+.job[data-status="done"] .bar::-moz-progress-bar {
+  background: var(--ok-fg);
+}
+
+/* No value yet: the track pulses instead of showing a made-up percentage. */
+.bar:indeterminate {
+  animation: calm 1.8s ease-in-out infinite;
+}
+
+@keyframes calm {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar:indeterminate {
+    animation: none;
+  }
+
+  .bar::-webkit-progress-value {
+    transition: none;
+  }
+}
+
+.meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.figures {
+  display: flex;
+  gap: 10px;
+  flex: none;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+.note {
+  margin: 0;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.problem {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--bad-fg);
+  overflow-wrap: anywhere;
+}
+
+.finish {
+  align-self: flex-start;
+  height: 34px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--ink);
+  color: var(--ink-inverse);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.finish:hover {
+  opacity: 0.88;
+}
+
+.finish:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}

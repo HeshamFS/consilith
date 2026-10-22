@@ -42,7 +42,8 @@ export interface AgentConfig {
   watches: Watch[];
   goal: string;
   computeBudgetS: number;
-  modelProvider: "scripted" | "anthropic" | "openai" | "gemini" | "siwc";
+  /** A provider id from the server's registry (`GET /providers`), not a closed set here. */
+  modelProvider: string;
   modelName?: string;
 }
 
@@ -200,11 +201,18 @@ export interface WiringEvent {
 }
 
 export interface Presence {
+  /** A person id, or an agent id (`<owner>.agent`) when `agent` is set. */
   person: string;
   ts: number;
+  /** A pointer in canvas content pixels, [x, y]. */
   cursor?: number[];
+  /** What an agent acts on: `/twin/{case}/{lane}[/{field}]`, `run:{case}` or `workspace:{case}`. */
   focus?: string;
   case?: string;
+  agent?: boolean;
+  owner?: string;
+  /** In words, such as "editing Grain boundary contrast"; never a value. */
+  action?: string;
 }
 
 export interface ToolCall {
@@ -228,4 +236,106 @@ export interface Interrupt {
     patch: PatchOp[];
     evidence: string[];
   };
+}
+
+// --- Agent platform wire types (additive; mirror consilith_contracts and agents/turn_events.py) --
+
+export type ToolKind = "platform" | "plugin" | "skill" | "kb" | "ui" | "peer";
+export type RiskClass = "R0" | "R1" | "R2" | "R3" | "R4";
+export type ToolAvailability =
+  | "available"
+  | "blocked_by_drawer"
+  | "blocked_by_activation"
+  | "blocked_by_autonomy";
+
+export interface ToolSpec {
+  ref: string;
+  alias: string;
+  kind: ToolKind;
+  description?: string;
+  inputSchema?: Record<string, unknown>;
+  risk: RiskClass;
+  minAutonomy: Autonomy;
+}
+
+export interface CatalogEntry {
+  spec: ToolSpec;
+  availability?: ToolAvailability;
+  /** Plain words for the person; set whenever the entry is blocked. */
+  reason?: string;
+  reachableVia?: { capability: string; mode: string }[];
+}
+
+export type PendingActionKind =
+  | "confirm_run"
+  | "confirm_claim"
+  | "confirm_peer"
+  | "confirm_lesson"
+  | "confirm_edit"
+  | "confirm_pin";
+
+export type PendingActionStatus =
+  | "pending"
+  | "executing"
+  | "done"
+  | "declined"
+  | "cancelled"
+  | "superseded"
+  | "expired";
+
+export interface PendingAction {
+  id: string;
+  room: string;
+  person: string;
+  msgId: string;
+  kind: PendingActionKind;
+  call: Record<string, unknown>;
+  resolvedArgs?: Record<string, unknown>;
+  digest: string;
+  inputRevisions?: Record<string, string>;
+  pluginPins?: { entryPoint: string; version: string; digest: string; contractVersion?: "1" }[];
+  taint?: boolean;
+  origin?: "owner" | "event";
+  status?: PendingActionStatus;
+  result?: Record<string, unknown> | null;
+  created: number;
+  expires: number;
+}
+
+/** The small thread index the room document carries; bodies are fetched from the thread route. */
+export interface PeerThreadIndex {
+  id: string;
+  participants: string[];
+  count: number;
+  lastTs: number;
+  status: "open" | "closed";
+}
+
+export type ProviderAuth = "key" | "chatgpt" | "brought" | "none";
+
+export interface ProviderDescriptor {
+  id: string;
+  label: string;
+  auth: ProviderAuth;
+  needsModel: boolean;
+  defaultModel?: string;
+  dataTerms: string;
+}
+
+/** The custom AG-UI event names the agent session emits (agents/turn_events.py). */
+export type AgentEventName = "consilith.agentmsg" | "consilith.notice";
+
+/** A typed problem or limit from a turn: plain words and what the person can do about it. */
+export interface TurnNotice {
+  code: string;
+  message: string;
+  fixAction?: string;
+}
+
+/** The body of a model error response (`error` in the JSON error shape). */
+export interface ModelErrorBody {
+  code: string;
+  message: string;
+  user_message: string;
+  fix_action: string | null;
 }

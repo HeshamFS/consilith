@@ -10,6 +10,19 @@ import type { LogEvent, Presence, RoomDoc, ToolCall, WiringEvent } from "./types
 
 export type Connection = "connecting" | "live" | "reconnecting" | "offline";
 
+/** The latest peer message the room log reported (ids only: the body is fetched from the thread
+ * route). The chat strip uses it to pulse when a colleague's agent answers. */
+export type PeerPulse = {
+  thread: string;
+  msgId: string;
+  from: string;
+  to: string;
+  kind: string;
+  hop: number;
+  ts: number;
+  seq: number;
+};
+
 export type FeedState = {
   doc: RoomDoc | null;
   seq: number;
@@ -21,6 +34,7 @@ export type FeedState = {
   connection: Connection;
   error: string | null;
   skipped: number;
+  peerPulse?: PeerPulse | null;
 };
 
 const KEEP = 200;
@@ -118,11 +132,28 @@ export function reduceFeed(s: FeedState, e: AguiEvent): FeedState {
   }
 }
 
+function pulseOf(e: LogEvent): PeerPulse {
+  const m = e.meta ?? {};
+  return {
+    thread: String(m.thread ?? ""),
+    msgId: String(m.msgId ?? ""),
+    from: String(m.from ?? ""),
+    to: String(m.to ?? ""),
+    kind: String(m.kind ?? ""),
+    hop: Number(m.hop ?? 1),
+    ts: e.ts,
+    seq: e.seq,
+  };
+}
+
 function custom(s: FeedState, name: string, value: unknown): FeedState {
   if (!value || typeof value !== "object") return s;
   switch (name) {
-    case "consilith.log":
-      return { ...s, log: tail(s.log, value as LogEvent) };
+    case "consilith.log": {
+      const entry = value as LogEvent;
+      const next = { ...s, log: tail(s.log, entry) };
+      return entry.kind === "peer.message" ? { ...next, peerPulse: pulseOf(entry) } : next;
+    }
     case "consilith.wiring":
       return { ...s, wiring: tail(s.wiring, value as WiringEvent) };
     case "consilith.presence": {
@@ -146,4 +177,92 @@ function custom(s: FeedState, name: string, value: unknown): FeedState {
     default:
       return s;
   }
+}
+
+// --- Long-run jobs: what a job card shows (WS-Q). Additive; nothing above reads these. --------
+
+export type JobStatusWire = "queued" | "running" | "done" | "failed" | "cancelled";
+
+/** The queue entry the room doc carries for a job (agents/queue.py), beyond `types.ts`. */
+export type QueueEntryWire = {
+  id: string;
+  status: string;
+  case?: string;
+  why?: string;
+  runId?: string;
+  startedAt?: number;
+  estimateS?: number;
+  supersedes?: string;
+  error?: string;
+  result?: { error?: string | null };
+  progress?: { fraction: number | null; message?: string; updatedAt?: number };
+};
+
+export type JobLive = {
+  status: JobStatusWire;
+  /** 0..1, or null while the run reports no total. */
+  fraction: number | null;
+  message?: string;
+  /** Seconds left, when it can be said honestly; otherwise undefined. */
+  etaS?: number;
+  elapsedS?: number;
+  error?: string;
+  /** Set when a restart replaced this job's run. */
+  supersedes?: string;
+};
+
+const JOB_STATUSES: JobStatusWire[] = ["queued", "running", "done", "failed", "cancelled"];
+
+/** Seconds left from the fraction done and the time spent, else from a declared estimate. */
+export function etaSeconds(
+  fraction: number | null,
+  elapsedS: number | undefined,
+  estimateS: number | undefined,
+): number | undefined {
+  if (elapsedS === undefined) return undefined;
+  if (fraction !== null && fraction >= 0.03 && fraction < 1) {
+    return Math.round((elapsedS * (1 - fraction)) / fraction);
+  }
+  if (fraction === null && estimateS !== undefined && elapsedS < estimateS) {
+    return Math.round(estimateS - elapsedS);
+  }
+  return undefined;
+}
+
+/** The live view of a job: its queue entry in the room doc, with the progress of the run's tool
+ * call (`call-{runId}`, carried by consilith.progress) when that is newer than the entry's. */
+export function jobLive(
+  s: Pick<FeedState, "doc" | "tools">,
+  jobId: string,
+  nowS: number = Date.now() / 1000,
+): JobLive | undefined {
+  const entry = (s.doc?.queue as Record<string, QueueEntryWire> | undefined)?.[jobId];
+  if (!entry) return undefined;
+  const status = JOB_STATUSES.includes(entry.status as JobStatusWire)
+    ? (entry.status as JobStatusWire)
+    : "queued";
+  let fraction: number | null = entry.progress?.fraction ?? null;
+  let message = entry.progress?.message;
+  const call = entry.runId ? s.tools[`call-${entry.runId}`]?.progress : undefined;
+  if (status === "running" && call) {
+    if (call.total && call.total > 0)
+      fraction = Math.min(1, Math.max(0, call.progress / call.total));
+    if (call.message) message = call.message;
+  }
+  if (status === "done") fraction = 1;
+  const elapsedS =
+    status === "running" && entry.startedAt !== undefined
+      ? Math.max(0, nowS - entry.startedAt)
+      : undefined;
+  const live: JobLive = { status, fraction };
+  if (message) live.message = message;
+  if (elapsedS !== undefined) live.elapsedS = elapsedS;
+  if (status === "running") {
+    const eta = etaSeconds(fraction, elapsedS, entry.estimateS);
+    if (eta !== undefined) live.etaS = eta;
+  }
+  const error = entry.error ?? entry.result?.error;
+  if (error) live.error = error;
+  if (entry.supersedes) live.supersedes = entry.supersedes;
+  return live;
 }

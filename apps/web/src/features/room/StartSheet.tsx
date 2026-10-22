@@ -111,13 +111,8 @@ export function StartSheet({
         [{ op: present ? "replace" : "add", path, value }],
         "User supplied input through declared package binding",
       );
-      setRouted({
-        supported: true,
-        case: cap.id,
-        label: binding.label ?? kind,
-        grammar: cap.grammar,
-      });
-      setNote("Input stored. Open the workspace to review controls before execution.");
+      // The input went through the studio's own editor: go straight into that studio.
+      onRouted(cap.id);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Input failed");
     } finally {
@@ -128,7 +123,7 @@ export function StartSheet({
     <Sheet
       title="Start from anything"
       sub="Choose an installed input editor or describe your request."
-      icon={<Icon name="formula" size={28} />}
+      icon={<Icon name="formula" size={20} />}
       onClose={onClose}
     >
       <div className={s.tabs} role="tablist" aria-label="Input kind">

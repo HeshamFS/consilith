@@ -1,0 +1,337 @@
+/* One chat for every agent: the picker, agent-to-agent lines in the speaker's seat colour with the
+   API and model beside the name, the replying row, and the pop-up. Tokens only. */
+
+.model {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  color: var(--ink-3);
+  font: 500 11px / 16px var(--font-mono);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c, var(--ink-3));
+}
+
+/* The picker: one chip per agent, your own first. */
+.picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--ink-2);
+  font: 500 12px / 16px var(--font-ui);
+  cursor: pointer;
+}
+.pick[aria-pressed="true"] {
+  border-color: var(--c, var(--ink));
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--c, var(--ink));
+}
+.pick:focus-visible {
+  outline: 2px solid var(--c, var(--ink));
+  outline-offset: 1px;
+}
+.pickName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* An agent-to-agent message: a chat bubble in the speaker's seat colour, my side on the right,
+   the other side on the left, as the person's own message bubble is drawn. */
+.line {
+  display: grid;
+  justify-items: start;
+  gap: 3px;
+  max-width: 86%;
+  align-self: flex-start;
+  justify-self: start;
+}
+.line[data-side="mine"] {
+  align-self: flex-end;
+  justify-self: end;
+  justify-items: end;
+}
+.byline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 2px;
+  font-size: 11px;
+  line-height: 15px;
+}
+.agent {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+.hop {
+  color: var(--ink-3);
+  font: 11px / 16px var(--font-mono);
+}
+.bubble {
+  margin: 0;
+  padding: 7px 11px;
+  border-radius: 12px;
+  border-bottom-left-radius: 4px;
+  background: var(--c, var(--ink-3));
+  color: var(--on-accent);
+  font-size: 13px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.line[data-side="mine"] .bubble {
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 4px;
+}
+.replying {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
+
+/* The pop-up: a compact notification above the bottom-right docks. A thin accent bar in the
+   sender's seat colour, two faces, who talks to whom on which models, the newest message only. */
+.popup {
+  position: fixed;
+  right: 20px;
+  bottom: 52px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  width: min(300px, calc(100vw - 40px));
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow:
+    0 10px 30px rgb(0 0 0 / 14%),
+    0 1px 3px rgb(0 0 0 / 8%);
+  animation: pop-in 180ms var(--ease) both;
+}
+.popup::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--c, var(--ink-3));
+}
+.popup[data-motion="reduced"] {
+  animation: none;
+}
+.popHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 10px 6px 14px;
+}
+.pair {
+  display: inline-flex;
+  flex: none;
+}
+.face {
+  position: relative;
+  display: inline-flex;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.face + .face {
+  margin-left: -7px;
+}
+.faceMark {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  display: grid;
+  place-items: center;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--c, var(--ink));
+  box-shadow: 0 0 0 1px var(--line);
+}
+.popWho {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 1px;
+  min-width: 0;
+}
+.popLine {
+  overflow: hidden;
+  font: 600 12px / 16px var(--font-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.popModels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.popModels .model {
+  height: 15px;
+  padding: 0 5px;
+  font-size: 10.5px;
+  line-height: 13px;
+}
+.popClose {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.popClose:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.popBody {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 12px 8px 14px;
+}
+.popBody .line {
+  max-width: 100%;
+}
+.popBody .bubble {
+  padding: 6px 10px;
+  font-size: 12.5px;
+  line-height: 17px;
+}
+/* A long message: four lines, fading out, until "more". */
+.popBody[data-clamped="true"] .bubble {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent);
+  mask-image: linear-gradient(to bottom, #000 62%, transparent);
+}
+.popMore,
+.popEarlier {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: 500 11px / 16px var(--font-ui);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.popFoot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px 10px 14px;
+  border-top: 1px solid var(--line);
+}
+.popOpen,
+.popMute {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font: 500 12px / 1 var(--font-ui);
+  cursor: pointer;
+}
+.popOpen {
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--ink-inverse);
+}
+.popMute {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-2);
+}
+.popMute:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.popEye {
+  display: inline-grid;
+  place-items: center;
+  margin-left: auto;
+  color: var(--ink-3);
+}
+
+/* A run-status note the room posted: one neutral system line, never a coloured bubble. */
+.system {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  align-self: stretch;
+  margin: 0;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font: 400 11.5px / 16px var(--font-ui);
+  overflow-wrap: anywhere;
+}
+.system > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--ink-3);
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .popup {
+    animation: none;
+  }
+}
+
+/* A result named in an agent's message: its name as a small chip, the id in the tooltip. */
+.resultRef {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--on-accent) 18%, transparent);
+  font: 500 0.92em / 1.5 var(--font-mono);
+  white-space: nowrap;
+}

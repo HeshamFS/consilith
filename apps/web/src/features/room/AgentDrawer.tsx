@@ -1,4 +1,12 @@
 import { type CSSProperties, useEffect, useState } from "react";
+import {
+  agentApi,
+  loadProviders,
+  type ModelOption,
+  PROVIDERS,
+  type ProviderInfo,
+} from "@/features/agent/api";
+import { ModelPicker } from "@/features/agent/ModelPicker";
 import { AUTONOMY, type PluginDescriptor, roleInfo } from "@/shared/domain/disciplines";
 import { ApiError } from "@/shared/http/client";
 import { Button, Icon, seatVar } from "@/shared/ui";
@@ -13,14 +21,6 @@ const AUTONOMY_NOTE: Record<AgentConfig["autonomy"], string> = {
   edit_my_lanes: "Edits your lanes directly, proposes in everyone else's.",
   run_solvers: "Also asks the conductor to run solvers, within your tools and budget.",
 };
-
-const MODELS: { id: AgentConfig["modelProvider"]; label: string; soon?: boolean }[] = [
-  { id: "anthropic", label: "Anthropic" },
-  { id: "openai", label: "OpenAI" },
-  { id: "gemini", label: "Google Gemini" },
-  { id: "scripted", label: "No model" },
-  { id: "siwc", label: "ChatGPT plan" },
-];
 
 /** Your agent in this room: autonomy, goal, budget, watches, skills, tools, model, memory.
  * Saved as one whole AgentConfig (PUT replaces it), only by its owner. */
@@ -46,6 +46,9 @@ export function AgentDrawer({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [lessons, setLessons] = useState<Lesson[] | null>(null);
+  const [providers, setProviders] = useState<ProviderInfo[]>(() => [...PROVIDERS]);
+  const [models, setModels] = useState<ModelOption[] | null>(null);
+  const [modelsNote, setModelsNote] = useState<string | null>(null);
   const c = seatVar(person.color);
   const disc =
     plugins.flatMap((p) => p.roles).find((r) => r.id === person.role) ?? roleInfo(person.role);
@@ -61,8 +64,54 @@ export function AgentDrawer({
     );
   }, [conn, editable]);
 
+  // One provider list, from the server's registry.
+  useEffect(() => {
+    loadProviders().then(
+      (list) => setProviders([...list]),
+      () => undefined,
+    );
+  }, []);
+
+  // The models the chosen provider's connection can use. Nothing is loaded for a provider that
+  // takes no model, or for a drawer the person cannot edit.
+  const provider = providers.find((p) => p.id === cfg.modelProvider);
+  const needsModel = Boolean(provider?.needsModel);
+  useEffect(() => {
+    setModels(null);
+    if (!editable || agent.brought || !needsModel) {
+      setModelsNote(null);
+      return;
+    }
+    let live = true;
+    setModelsNote("Loading models…");
+    agentApi.models(cfg.modelProvider).then(
+      (r) => {
+        if (!live) return;
+        setModels(r.models);
+        setModelsNote(r.models.length ? null : "This connection lists no chat models.");
+      },
+      (e: unknown) => {
+        if (live)
+          setModelsNote(e instanceof ApiError ? e.message : "The models could not be loaded.");
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [cfg.modelProvider, needsModel, editable, agent.brought]);
+
   const change = (next: Partial<AgentConfig>) => {
     setCfg((x) => ({ ...x, ...next }));
+    setDirty(true);
+    setMsg(null);
+  };
+  // Changing the provider clears the model: an id belongs to one maker.
+  const chooseProvider = (id: string) => {
+    if (id === cfg.modelProvider) return;
+    setCfg((x) => {
+      const { modelName: _cleared, ...rest } = x;
+      return { ...rest, modelProvider: id };
+    });
     setDirty(true);
     setMsg(null);
   };
@@ -71,6 +120,10 @@ export function AgentDrawer({
   const allowed = (t: string) => cfg.toolsAllowed.includes(t) && !cfg.toolsDenied.includes(t);
 
   async function save() {
+    if (needsModel && !cfg.modelName?.trim()) {
+      setMsg({ ok: false, text: "Choose a model for this provider first." });
+      return;
+    }
     setBusy(true);
     try {
       await conn.setConfig(agent.id, cfg);
@@ -84,106 +137,141 @@ export function AgentDrawer({
   }
 
   const title = agent.brought ? (agent.card?.name ?? "Your A2A agent") : agent.id;
+  const toggleTool = (t: string, on: boolean) =>
+    change(
+      on
+        ? {
+            toolsAllowed: [...new Set([...cfg.toolsAllowed, t])],
+            toolsDenied: cfg.toolsDenied.filter((x) => x !== t),
+          }
+        : {
+            toolsAllowed: cfg.toolsAllowed.filter((x) => x !== t),
+            toolsDenied: [...new Set([...cfg.toolsDenied, t])],
+          },
+    );
+  const owner = editable ? "Your" : `${person.name}'s`;
   return (
     <Sheet
       title={title}
       sub={
         agent.brought
-          ? `Brought by ${person.name} over A2A · ${person.name}'s lanes and permissions`
-          : `${editable ? "Your personal agent" : `${person.name}'s personal agent`} · Consilith agent · follows ${editable ? "you" : "them"} to every room`
+          ? `Brought by ${person.name} over A2A`
+          : `${owner} Consilith agent · follows ${editable ? "you" : "them"} to every room`
       }
-      icon={<Icon name={agent.brought ? "a2a" : "agent"} size={32} accent={c} />}
+      icon={<Icon name={agent.brought ? "a2a" : "agent"} size={20} accent={c} />}
+      narrow
       onClose={onClose}
     >
-      <div className={s.cols} style={{ "--c": c } as CSSProperties}>
-        <div className={s.col}>
-          <fieldset className={s.section} disabled={!editable}>
-            <legend className={s.sectionHead}>
-              <span className={s.h3}>Autonomy</span>
-              <span className={s.small}>how far it goes without asking</span>
+      <div className={s.drawer} style={{ "--c": c } as CSSProperties}>
+        {!agent.brought ? (
+          <fieldset className={s.block} disabled={!editable}>
+            <legend className={s.eyebrow}>
+              Model <span>what it thinks with</span>
             </legend>
-            <div className={s.options}>
-              {AUTONOMY.map((a) => (
-                <label key={a.id} className={s.option}>
-                  <input
-                    type="radio"
-                    name="autonomy"
-                    checked={cfg.autonomy === a.id}
-                    onChange={() => change({ autonomy: a.id })}
-                  />
-                  <span className={s.optionName}>{a.label}</span>
-                  <span className={s.optionNote}>{AUTONOMY_NOTE[a.id]}</span>
-                </label>
+            <fieldset className={s.segments}>
+              <legend className="visually-hidden">Provider</legend>
+              {providers.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  className={s.segment}
+                  aria-pressed={cfg.modelProvider === p.id}
+                  onClick={() => chooseProvider(p.id)}
+                >
+                  {p.label}
+                </button>
               ))}
-            </div>
-            <p className={s.small}>Set by your role, {disc.label}.</p>
-          </fieldset>
-
-          <section className={s.section}>
-            <h3 className={s.h3}>Goal</h3>
-            <div className={s.goal}>
-              <Icon name="decision" size={18} />
-              <span>{cfg.goal || "none set"}</span>
-              <span className={s.small}>what proposals optimise</span>
-            </div>
-          </section>
-
-          <fieldset className={s.section} disabled={!editable}>
-            <legend className={s.sectionHead}>
-              <span className={s.h3}>Compute budget</span>
-              <span className={s.small}>quick tier</span>
-            </legend>
-            <div className={s.budget}>
-              <input
-                type="range"
-                min={5}
-                max={300}
-                step={5}
-                value={cfg.computeBudgetS}
-                aria-label="Seconds per quick run"
-                onChange={(e) => change({ computeBudgetS: Number(e.target.value) })}
+            </fieldset>
+            {needsModel ? (
+              <ModelPicker
+                models={models}
+                value={cfg.modelName ?? ""}
+                onChange={(m) => change({ modelName: m })}
+                note={modelsNote}
               />
-              <span className={s.mono}>{cfg.computeBudgetS} s</span>
-            </div>
-            <p className={s.small}>
-              Solver time per quick run. Larger runs go to the accurate queue.
-            </p>
+            ) : null}
+            {provider ? <p className={s.hint}>{provider.dataTerms}</p> : null}
+            <p className={s.hint}>Your key stays in server memory for your session only.</p>
           </fieldset>
+        ) : null}
 
-          <section className={s.section}>
-            <div className={s.sectionHead}>
-              <h3 className={s.h3}>Watches</h3>
-              <span className={s.small}>checked on every result</span>
-            </div>
-            {cfg.watches.length ? (
-              cfg.watches.map((w) => (
-                <div key={w.id} className={s.watch}>
-                  <Icon name="verified" size={18} />
-                  <span>
-                    {w.label}
-                    <span className={s.small} style={{ display: "block" }}>
-                      {w.case}
-                    </span>
-                  </span>
-                  <span className={s.tag}>
-                    {w.onBreak === "propose" ? "proposes when broken" : "warns when broken"}
-                  </span>
-                </div>
-              ))
-            ) : (
-              <p className={s.small}>No watches yet.</p>
-            )}
-          </section>
-        </div>
+        <fieldset className={s.block} disabled={!editable}>
+          <legend className={s.eyebrow}>
+            Autonomy <span>how far it goes without asking</span>
+          </legend>
+          <div className={s.steps}>
+            {AUTONOMY.map((a) => (
+              <label key={a.id} className={s.step}>
+                <input
+                  type="radio"
+                  name="autonomy"
+                  checked={cfg.autonomy === a.id}
+                  onChange={() => change({ autonomy: a.id })}
+                />
+                <span>{a.label}</span>
+              </label>
+            ))}
+          </div>
+          <p className={s.hint}>
+            {AUTONOMY_NOTE[cfg.autonomy]} Set by your role, {disc.label}.
+          </p>
+        </fieldset>
 
-        <div className={s.col}>
-          <fieldset className={s.section} disabled={!editable}>
-            <legend className={s.sectionHead}>
-              <span className={s.h3}>Skills</span>
-              <span className={s.small}>
-                {cfg.skills.length} of {skills.length} skill folders on
-              </span>
-            </legend>
+        <fieldset className={s.block} disabled={!editable}>
+          <legend className={s.eyebrow}>Goal</legend>
+          <textarea
+            className={s.goalInput}
+            aria-label="Goal"
+            rows={3}
+            value={cfg.goal}
+            placeholder="What should its proposals optimise?"
+            onChange={(e) => change({ goal: e.target.value })}
+          />
+          <p className={s.hint}>What its proposals optimise.</p>
+        </fieldset>
+
+        <fieldset className={s.block} disabled={!editable}>
+          <legend className={s.eyebrow}>
+            Tools{" "}
+            <span>
+              {tools.filter(allowed).length} of {tools.length} on
+            </span>
+          </legend>
+          {tools.length ? (
+            <ul className={s.toolList}>
+              {tools.map((t) => (
+                <li key={t}>
+                  <label className={s.toolRow} title={t}>
+                    <span className={s.toolName}>{t}</span>
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      aria-checked={allowed(t)}
+                      aria-label={t}
+                      className={s.switch}
+                      checked={allowed(t)}
+                      onChange={(e) => toggleTool(t, e.target.checked)}
+                    />
+                  </label>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className={s.hint}>No plugin tools in this room.</p>
+          )}
+          <p className={s.hint}>
+            It asks the conductor to call these; never a solver itself, never in another lane.
+          </p>
+        </fieldset>
+
+        <fieldset className={s.block} disabled={!editable}>
+          <legend className={s.eyebrow}>
+            Skills{" "}
+            <span>
+              {cfg.skills.length} of {skills.length} on
+            </span>
+          </legend>
+          {skills.length ? (
             <div className={s.skills}>
               {skills.map((k) => {
                 const on = cfg.skills.includes(k);
@@ -204,123 +292,96 @@ export function AgentDrawer({
                 );
               })}
             </div>
-          </fieldset>
+          ) : (
+            <p className={s.hint}>No skills in this room.</p>
+          )}
+        </fieldset>
 
-          <fieldset className={s.section} disabled={!editable}>
-            <legend className={s.sectionHead}>
-              <span className={s.h3}>Tools</span>
-              <span className={s.small}>allow or deny each one</span>
-            </legend>
-            <div className={s.tools}>
-              {tools.map((t) => (
-                <label key={t} className={s.tool}>
-                  <span>{t}</span>
-                  <input
-                    type="checkbox"
-                    role="switch"
-                    aria-checked={allowed(t)}
-                    className={s.switch}
-                    checked={allowed(t)}
-                    onChange={(e) =>
-                      change(
-                        e.target.checked
-                          ? {
-                              toolsAllowed: [...new Set([...cfg.toolsAllowed, t])],
-                              toolsDenied: cfg.toolsDenied.filter((x) => x !== t),
-                            }
-                          : {
-                              toolsAllowed: cfg.toolsAllowed.filter((x) => x !== t),
-                              toolsDenied: [...new Set([...cfg.toolsDenied, t])],
-                            },
-                      )
-                    }
-                  />
-                </label>
+        <fieldset className={s.block} disabled={!editable}>
+          <legend className={s.eyebrow}>
+            Compute budget <span>quick tier</span>
+          </legend>
+          <div className={s.budget}>
+            <input
+              type="range"
+              min={5}
+              max={300}
+              step={5}
+              value={cfg.computeBudgetS}
+              aria-label="Seconds per quick run"
+              onChange={(e) => change({ computeBudgetS: Number(e.target.value) })}
+            />
+            <span className={s.mono}>{cfg.computeBudgetS} s</span>
+          </div>
+          <p className={s.hint}>Solver time per quick run; larger runs go to the accurate queue.</p>
+        </fieldset>
+
+        <section className={s.block}>
+          <h3 className={s.eyebrow}>
+            Watches <span>checked on every result</span>
+          </h3>
+          {cfg.watches.length ? (
+            <ul className={s.rows}>
+              {cfg.watches.map((w) => (
+                <li key={w.id} className={s.row}>
+                  <Icon name="verified" size={14} />
+                  <span className={s.rowMain}>
+                    {w.label} <span className={s.hint}>{w.case}</span>
+                  </span>
+                  <span className={s.tag}>
+                    {w.onBreak === "propose" ? "proposes when broken" : "warns when broken"}
+                  </span>
+                </li>
               ))}
-            </div>
-            <p className={s.small}>
-              Your agent asks the conductor to call these. It never calls a solver itself, and never
-              in someone else's lane.
-            </p>
-          </fieldset>
+            </ul>
+          ) : (
+            <p className={s.hint}>No watches yet.</p>
+          )}
+        </section>
 
-          {!agent.brought ? (
-            <fieldset className={s.section} disabled={!editable}>
-              <legend className={s.sectionHead}>
-                <span className={s.h3}>Model</span>
-                <span className={s.small}>what your agent thinks with</span>
-              </legend>
-              <div className={s.models}>
-                {MODELS.map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    className={s.model}
-                    aria-pressed={cfg.modelProvider === m.id}
-                    disabled={m.soon}
-                    onClick={() => change({ modelProvider: m.id })}
-                  >
-                    {m.label}
-                    {m.soon ? " · coming soon" : ""}
-                  </button>
+        {editable ? (
+          <section className={s.block}>
+            <h3 className={s.eyebrow}>
+              Memory <span>lessons, across all your rooms</span>
+            </h3>
+            {lessons?.length ? (
+              <ul className={s.rows}>
+                {lessons.map((l) => (
+                  <li key={l.id} className={s.row}>
+                    <Icon name="ledger" size={14} />
+                    <span className={s.rowMain}>{l.text}</span>
+                  </li>
                 ))}
-              </div>
-              <p className={s.small}>
-                The key is set in your agent settings and held in server memory for your session
-                only. It is never stored, logged or sent to the browser.
+              </ul>
+            ) : (
+              <p className={s.hint}>
+                {lessons === null
+                  ? "Loading…"
+                  : "No lessons yet. Your reasons on approved or declined proposals become lessons."}
               </p>
-            </fieldset>
-          ) : null}
+            )}
+          </section>
+        ) : null}
 
-          {editable ? (
-            <section className={s.section}>
-              <div className={s.sectionHead}>
-                <h3 className={s.h3}>Memory</h3>
-                <span className={s.small}>lessons, across all your rooms</span>
-              </div>
-              {lessons?.length ? (
-                <ul className={s.lessons}>
-                  {lessons.map((l) => (
-                    <li key={l.id}>{l.text}</li>
-                  ))}
-                </ul>
-              ) : (
-                <div className={s.memory}>
-                  <Icon name="ledger" size={20} />
-                  <div>
-                    <div className={s.strong}>
-                      {lessons === null ? "Loading…" : "No lessons yet"}
-                    </div>
-                    <p className={s.small}>
-                      When you approve or decline a proposal, your reason becomes a lesson your
-                      agent checks before it proposes again.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </section>
-          ) : null}
-        </div>
+        {editable ? (
+          <div className={s.footer}>
+            {msg ? (
+              <span className={msg.ok ? s.hint : s.bad} role="status">
+                {msg.text}
+              </span>
+            ) : null}
+            <Button variant="ghost" small onClick={onBring}>
+              <Icon name="a2a" size={14} />
+              Bring your own agent
+            </Button>
+            <Button small disabled={!dirty || busy} onClick={save}>
+              {busy ? "Saving…" : "Save"}
+            </Button>
+          </div>
+        ) : (
+          <p className={s.hint}>Only {person.name} can change this drawer.</p>
+        )}
       </div>
-
-      {editable ? (
-        <div className={s.footer}>
-          {msg ? (
-            <span className={msg.ok ? s.small : s.bad} role="status">
-              {msg.text}
-            </span>
-          ) : null}
-          <Button variant="ghost" onClick={onBring}>
-            <Icon name="a2a" size={18} />
-            Bring your own agent
-          </Button>
-          <Button disabled={!dirty || busy} onClick={save}>
-            {busy ? "Saving…" : "Save the drawer"}
-          </Button>
-        </div>
-      ) : (
-        <p className={s.small}>Only {person.name} can change this drawer.</p>
-      )}
     </Sheet>
   );
 }

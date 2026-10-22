@@ -41,6 +41,16 @@ export function describeLog(e: LogEvent, doc: RoomDoc | null): string {
       return `${String(m.tool ?? "A solve")} failed${m.error ? `: ${String(m.error)}` : ""}`;
     case "ledger.entry":
       return "The referee signed a result into the ledger";
+    case "peer.message":
+      return `${String(m.from ?? "an agent")} → ${String(m.to ?? "an agent")}: ${String(m.kind ?? "message")}, hop ${String(m.hop ?? 1)}`;
+    case "peer.thread":
+      return "An agent thread changed state";
+    case "peer.thread.closed":
+      return `${who} closed an agent thread`;
+    case "peer.cause":
+      return `A message from ${String(m.from ?? "an agent")} led to a proposal`;
+    case "peer.prefs":
+      return `${who} changed their agent-to-agent settings`;
     case "intake.routed":
       return `${who}'s input went to ${String(m.case ?? "a studio")}`;
     default:

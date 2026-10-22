@@ -543,3 +543,41 @@
   margin: 0;
   accent-color: var(--seat-blue);
 }
+
+/* What the studio brings: tools, skills and knowledge from the plugin's descriptor. */
+.brings {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+.brings dt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 5px;
+  color: var(--ink-2);
+  font: 500 var(--fs-label, 11px) / 16px var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.brings dt span {
+  color: var(--ink-3);
+}
+.brings dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+}
+.tag {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  color: var(--ink);
+  font: 500 11.5px / 16px var(--font-mono);
+  white-space: nowrap;
+}

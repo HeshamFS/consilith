@@ -1,0 +1,121 @@
+/* A surface in the chat. It lives in the docked chat, so it is a size container and compact:
+   everything inside answers to the width it has. */
+.card {
+  container: inline / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+.title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font: 600 12.5px / 18px var(--font-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.private {
+  padding: 1px 7px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--ink-2);
+  font: 500 10.5px / 16px var(--font-mono);
+}
+.stale {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: var(--r-pill);
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+/* The body of a surface in the chat: small type, pictures capped, and the plumbing of an
+   artifact (download, sha256, source id) left to the studio. */
+.body {
+  container: inline / inline-size;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.body img,
+.body canvas,
+.body [class*="_canvas_"] {
+  max-height: 200px;
+  object-fit: contain;
+}
+.body [class*="_artifactProv_"],
+.body figure > a[download],
+.body [class*="_preserved_"],
+.body [class*="_toolbar_"] {
+  display: none;
+}
+/* A result row: its label on its own line above the value, never under it. */
+.body [class*="_valueRow_"] {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 2px;
+}
+.why {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.err {
+  margin: 0;
+  color: var(--bad-fg);
+  font-size: 12px;
+}
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px;
+}
+.broken {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-md);
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
+
+/* A surface split into tree rows: the one picture asked for open, the rest collapsed. */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.open {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.openTitle {
+  font: 500 11px / 16px var(--font-mono);
+  color: var(--ink-2);
+}

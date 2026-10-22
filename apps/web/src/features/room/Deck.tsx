@@ -1,4 +1,6 @@
+import { Link } from "react-router";
 import type { Capability } from "@/shared/domain/disciplines";
+import { studioIcon } from "@/shared/domain/studioIcon";
 import { Avatar, Icon, type IconName, seatVar } from "@/shared/ui";
 import s from "./room.module.css";
 
@@ -11,11 +13,13 @@ function studioTools(capabilities: Capability[]): { view: View; icon: IconName; 
     { view: { kind: "builtin", id: "overview" }, icon: "room", label: "Room overview" },
     ...capabilities.map((studio) => ({
       view: { kind: "capability" as const, id: studio.id },
-      icon: "solvers" as IconName,
+      icon: studioIcon(studio),
       label: studio.label,
     })),
   ];
 }
+
+export { studioIcon };
 
 const WORK_TOOLS: { view: View; icon: IconName; label: string }[] = [
   { view: { kind: "builtin", id: "decide" }, icon: "decision", label: "Decide together" },
@@ -28,7 +32,6 @@ export function Deck({
   capabilities,
   onPlugins,
   onView,
-  onStart,
   onLog,
   onLedger,
   onAgent,
@@ -40,7 +43,6 @@ export function Deck({
   capabilities: Capability[];
   onPlugins: () => void;
   onView: (v: View) => void;
-  onStart: () => void;
   onLog: () => void;
   onLedger: () => void;
   onAgent: () => void;
@@ -50,17 +52,18 @@ export function Deck({
 }) {
   return (
     <nav className={`${s.deck} ${s.floating}`} aria-label="Room tools">
-      <button
-        type="button"
+      {/* "+" opens a new room (Hesham, 2026-10-22); starting from a file or a sketch lives in
+          the new-room page and in the studio itself. */}
+      <Link
+        to="/rooms/new"
         className={`${s.deckBtn} ${s.deckStart}`}
-        data-tip="Start from anything"
-        aria-label="Start from anything"
-        onClick={onStart}
+        data-tip="New room"
+        aria-label="New room"
       >
-        <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>
           <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
         </svg>
-      </button>
+      </Link>
       {studioTools(capabilities).map((t) => (
         <button
           key={`${t.view.kind}:${t.view.id}`}
@@ -72,7 +75,7 @@ export function Deck({
           disabled={!t.view}
           onClick={() => t.view && onView(t.view)}
         >
-          <Icon name={t.icon} size={22} />
+          <Icon name={t.icon} size={18} />
         </button>
       ))}
       <button
@@ -82,7 +85,7 @@ export function Deck({
         data-tip="Room plugins"
         onClick={onPlugins}
       >
-        <Icon name="drawer" size={22} />
+        <Icon name="drawer" size={18} />
       </button>
       <span className={s.deckSep} aria-hidden />
       {WORK_TOOLS.map((t) => (
@@ -99,7 +102,7 @@ export function Deck({
           aria-current={sameView(t.view, view) ? "page" : undefined}
           onClick={() => onView(t.view)}
         >
-          <Icon name={t.icon} size={22} />
+          <Icon name={t.icon} size={18} />
           {t.view.kind === "builtin" && t.view.id === "decide" && waiting ? (
             <span className={s.dot} aria-hidden />
           ) : null}
@@ -112,7 +115,7 @@ export function Deck({
         aria-label="What just happened"
         onClick={onLog}
       >
-        <Icon name="log" size={22} />
+        <Icon name="log" size={18} />
       </button>
       <button
         type="button"
@@ -121,7 +124,7 @@ export function Deck({
         aria-label="Ledger"
         onClick={onLedger}
       >
-        <Icon name="ledger" size={22} />
+        <Icon name="ledger" size={18} />
       </button>
       <span className={s.deckSep} aria-hidden />
       <button
@@ -131,7 +134,7 @@ export function Deck({
         aria-label="Talk to your agent"
         onClick={onChat}
       >
-        <Icon name="room-agent" size={22} accent={seatVar(me.color)} />
+        <Icon name="room-agent" size={18} accent={seatVar(me.color)} />
       </button>
       <button
         type="button"
@@ -140,7 +143,7 @@ export function Deck({
         aria-label="Your agent"
         onClick={onAgent}
       >
-        <Avatar name={me.name} color={me.color} size={36} />
+        <Avatar name={me.name} color={me.color} size={30} />
         <span className={s.badge}>
           <Icon name="agent" size={13} accent={seatVar(me.color)} />
         </span>
