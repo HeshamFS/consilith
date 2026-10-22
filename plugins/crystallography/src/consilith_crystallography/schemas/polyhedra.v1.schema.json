@@ -1,0 +1,1084 @@
+{
+  "$defs": {
+    "AnalysisSettings": {
+      "properties": {
+        "method": {
+          "enum": [
+            "shannon",
+            "crystalnn",
+            "cutoff"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "centers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Centers",
+          "type": "array"
+        },
+        "ligands": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ligands"
+        },
+        "max_bond": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Bond"
+        },
+        "min_bond": {
+          "default": 0.0,
+          "title": "Min Bond",
+          "type": "number"
+        },
+        "radius_tolerance": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Radius Tolerance"
+        },
+        "include_element_shells": {
+          "default": false,
+          "title": "Include Element Shells",
+          "type": "boolean"
+        },
+        "oxidation_states": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Oxidation States"
+        },
+        "notes": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Notes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "method",
+        "centers"
+      ],
+      "title": "AnalysisSettings",
+      "type": "object"
+    },
+    "Connection": {
+      "properties": {
+        "neighbor_index": {
+          "title": "Neighbor Index",
+          "type": "integer"
+        },
+        "neighbor_label": {
+          "title": "Neighbor Label",
+          "type": "string"
+        },
+        "neighbor_element": {
+          "title": "Neighbor Element",
+          "type": "string"
+        },
+        "neighbor_type_id": {
+          "title": "Neighbor Type Id",
+          "type": "string"
+        },
+        "image": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Image",
+          "type": "array"
+        },
+        "center_distance": {
+          "title": "Center Distance",
+          "type": "number"
+        },
+        "shared_ligands": {
+          "title": "Shared Ligands",
+          "type": "integer"
+        },
+        "sharing": {
+          "enum": [
+            "corner",
+            "edge",
+            "face"
+          ],
+          "title": "Sharing",
+          "type": "string"
+        },
+        "bridging_angles": {
+          "description": "centre\u2013ligand\u2013neighbour angles for each shared ligand, degrees",
+          "items": {
+            "type": "number"
+          },
+          "title": "Bridging Angles",
+          "type": "array"
+        }
+      },
+      "required": [
+        "neighbor_index",
+        "neighbor_label",
+        "neighbor_element",
+        "neighbor_type_id",
+        "image",
+        "center_distance",
+        "shared_ligands",
+        "sharing",
+        "bridging_angles"
+      ],
+      "title": "Connection",
+      "type": "object"
+    },
+    "CrystalChemistry": {
+      "properties": {
+        "pauling_rule_1_radius_ratio": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Pauling Rule 1 Radius Ratio",
+          "type": "array"
+        },
+        "pauling_rule_2_electrostatic_valence": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Pauling Rule 2 Electrostatic Valence",
+          "type": "array"
+        },
+        "pauling_rule_3_polyhedron_sharing": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "title": "Pauling Rule 3 Polyhedron Sharing",
+          "type": "object"
+        },
+        "pauling_rule_4_high_valence_sharing": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Pauling Rule 4 High Valence Sharing",
+          "type": "array"
+        },
+        "pauling_rule_5_parsimony": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Pauling Rule 5 Parsimony",
+          "type": "object"
+        },
+        "bond_valence_sums": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Bond Valence Sums",
+          "type": "array"
+        },
+        "global_instability_index": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "sqrt(<(BVS-|V|)^2>), valence units",
+          "title": "Global Instability Index"
+        },
+        "bond_count_balance": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Bond Count Balance"
+        },
+        "site_symmetry_consistent": {
+          "title": "Site Symmetry Consistent",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "pauling_rule_1_radius_ratio",
+        "pauling_rule_2_electrostatic_valence",
+        "pauling_rule_3_polyhedron_sharing",
+        "pauling_rule_4_high_valence_sharing",
+        "pauling_rule_5_parsimony",
+        "bond_valence_sums",
+        "global_instability_index",
+        "bond_count_balance",
+        "site_symmetry_consistent"
+      ],
+      "title": "CrystalChemistry",
+      "type": "object"
+    },
+    "LatticeRecord": {
+      "properties": {
+        "a": {
+          "title": "A",
+          "type": "number"
+        },
+        "b": {
+          "title": "B",
+          "type": "number"
+        },
+        "c": {
+          "title": "C",
+          "type": "number"
+        },
+        "alpha": {
+          "title": "Alpha",
+          "type": "number"
+        },
+        "beta": {
+          "title": "Beta",
+          "type": "number"
+        },
+        "gamma": {
+          "title": "Gamma",
+          "type": "number"
+        },
+        "volume": {
+          "description": "Cell volume, \u00c5^3",
+          "title": "Volume",
+          "type": "number"
+        },
+        "matrix": {
+          "description": "Row vectors a, b, c in Cartesian \u00c5",
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Matrix",
+          "type": "array"
+        }
+      },
+      "required": [
+        "a",
+        "b",
+        "c",
+        "alpha",
+        "beta",
+        "gamma",
+        "volume",
+        "matrix"
+      ],
+      "title": "LatticeRecord",
+      "type": "object"
+    },
+    "LigandRecord": {
+      "properties": {
+        "index": {
+          "title": "Index",
+          "type": "integer"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "element": {
+          "title": "Element",
+          "type": "string"
+        },
+        "image": {
+          "description": "Lattice translation of the ligand relative to the home cell",
+          "items": {
+            "type": "integer"
+          },
+          "title": "Image",
+          "type": "array"
+        },
+        "cart": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Cart",
+          "type": "array"
+        },
+        "distance": {
+          "title": "Distance",
+          "type": "number"
+        }
+      },
+      "required": [
+        "index",
+        "label",
+        "element",
+        "image",
+        "cart",
+        "distance"
+      ],
+      "title": "LigandRecord",
+      "type": "object"
+    },
+    "Polyhedron": {
+      "properties": {
+        "type_id": {
+          "title": "Type Id",
+          "type": "string"
+        },
+        "center_index": {
+          "title": "Center Index",
+          "type": "integer"
+        },
+        "center_label": {
+          "title": "Center Label",
+          "type": "string"
+        },
+        "center_element": {
+          "title": "Center Element",
+          "type": "string"
+        },
+        "center_wyckoff": {
+          "title": "Center Wyckoff",
+          "type": "string"
+        },
+        "center_frac": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Center Frac",
+          "type": "array"
+        },
+        "center_cart": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Center Cart",
+          "type": "array"
+        },
+        "ligands": {
+          "items": {
+            "$ref": "#/$defs/LigandRecord"
+          },
+          "title": "Ligands",
+          "type": "array"
+        },
+        "metrics": {
+          "$ref": "#/$defs/PolyhedronMetrics"
+        },
+        "faces": {
+          "description": "Convex-hull triangles as indices into ligands",
+          "items": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "title": "Faces",
+          "type": "array"
+        },
+        "connections": {
+          "items": {
+            "$ref": "#/$defs/Connection"
+          },
+          "title": "Connections",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type_id",
+        "center_index",
+        "center_label",
+        "center_element",
+        "center_wyckoff",
+        "center_frac",
+        "center_cart",
+        "ligands",
+        "metrics",
+        "faces",
+        "connections"
+      ],
+      "title": "Polyhedron",
+      "type": "object"
+    },
+    "PolyhedronMetrics": {
+      "properties": {
+        "coordination_number": {
+          "title": "Coordination Number",
+          "type": "integer"
+        },
+        "shape": {
+          "description": "Identified from vertex count and face polygons of the hull",
+          "title": "Shape",
+          "type": "string"
+        },
+        "face_sizes": {
+          "description": "Number of vertices of each (merged) hull face",
+          "items": {
+            "type": "integer"
+          },
+          "title": "Face Sizes",
+          "type": "array"
+        },
+        "average_bond_length": {
+          "description": "VESTA 'Average bond length', \u00c5",
+          "title": "Average Bond Length",
+          "type": "number"
+        },
+        "min_bond_length": {
+          "title": "Min Bond Length",
+          "type": "number"
+        },
+        "max_bond_length": {
+          "title": "Max Bond Length",
+          "type": "number"
+        },
+        "polyhedral_volume": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "VESTA 'Polyhedral volume' (convex hull), \u00c5^3",
+          "title": "Polyhedral Volume"
+        },
+        "distortion_index": {
+          "description": "VESTA 'Distortion index (bond length)', Baur 1974",
+          "title": "Distortion Index",
+          "type": "number"
+        },
+        "effective_coordination_number": {
+          "description": "VESTA 'Effective coordination number', Hoppe 1979",
+          "title": "Effective Coordination Number",
+          "type": "number"
+        },
+        "weighted_average_bond_length": {
+          "description": "Hoppe-weighted mean bond length used for ECoN, \u00c5",
+          "title": "Weighted Average Bond Length",
+          "type": "number"
+        },
+        "quadratic_elongation": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Robinson 1971; tetrahedra, octahedra, cubes",
+          "title": "Quadratic Elongation"
+        },
+        "bond_angle_variance": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Robinson 1971, deg^2; tetrahedra, octahedra, cubes",
+          "title": "Bond Angle Variance"
+        },
+        "bond_valence_sum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Brown bond-valence sum, Brese & O'Keeffe 1991 R0, b=0.37 \u00c5",
+          "title": "Bond Valence Sum"
+        },
+        "center_offset": {
+          "description": "Distance of the centre from the ligand centroid, \u00c5",
+          "title": "Center Offset",
+          "type": "number"
+        }
+      },
+      "required": [
+        "coordination_number",
+        "shape",
+        "face_sizes",
+        "average_bond_length",
+        "min_bond_length",
+        "max_bond_length",
+        "polyhedral_volume",
+        "distortion_index",
+        "effective_coordination_number",
+        "weighted_average_bond_length",
+        "quadratic_elongation",
+        "bond_angle_variance",
+        "bond_valence_sum",
+        "center_offset"
+      ],
+      "title": "PolyhedronMetrics",
+      "type": "object"
+    },
+    "PolyhedronTypeRecord": {
+      "description": "One symmetry-distinct polyhedron; all its instances have identical metrics.",
+      "properties": {
+        "type_id": {
+          "title": "Type Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "coordination",
+            "element_shell"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "center_label": {
+          "title": "Center Label",
+          "type": "string"
+        },
+        "center_element": {
+          "title": "Center Element",
+          "type": "string"
+        },
+        "wyckoff": {
+          "title": "Wyckoff",
+          "type": "string"
+        },
+        "site_symmetry": {
+          "title": "Site Symmetry",
+          "type": "string"
+        },
+        "ligand_formula": {
+          "title": "Ligand Formula",
+          "type": "string"
+        },
+        "n_instances": {
+          "title": "N Instances",
+          "type": "integer"
+        },
+        "metrics": {
+          "$ref": "#/$defs/PolyhedronMetrics"
+        },
+        "connectivity": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Average number of corner/edge/face links per polyhedron to polyhedra of the same type",
+          "title": "Connectivity",
+          "type": "object"
+        },
+        "mean_bridging_angle": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Mean centre\u2013ligand\u2013centre angle over corner-sharing links within the family, degrees",
+          "title": "Mean Bridging Angle"
+        }
+      },
+      "required": [
+        "type_id",
+        "kind",
+        "center_label",
+        "center_element",
+        "wyckoff",
+        "site_symmetry",
+        "ligand_formula",
+        "n_instances",
+        "metrics",
+        "connectivity",
+        "mean_bridging_angle"
+      ],
+      "title": "PolyhedronTypeRecord",
+      "type": "object"
+    },
+    "ShannonEnvironment": {
+      "properties": {
+        "shannon_cn": {
+          "description": "Coordination number whose Shannon radius gave the bonds",
+          "title": "Shannon Cn",
+          "type": "integer"
+        },
+        "shannon_consistent": {
+          "description": "True if exactly shannon_cn neighbours fall within the radius sum",
+          "title": "Shannon Consistent",
+          "type": "boolean"
+        },
+        "center_radius": {
+          "description": "Shannon ionic radius of the centre at shannon_cn, \u00c5",
+          "title": "Center Radius",
+          "type": "number"
+        },
+        "ligand_radius": {
+          "description": "Mean Shannon ionic radius of the ligands, \u00c5",
+          "title": "Ligand Radius",
+          "type": "number"
+        },
+        "expected_bond_length": {
+          "description": "center_radius + ligand_radius, \u00c5",
+          "title": "Expected Bond Length",
+          "type": "number"
+        },
+        "radius_ratio": {
+          "description": "r_cation / r_anion",
+          "title": "Radius Ratio",
+          "type": "number"
+        },
+        "pauling_cn": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "CN predicted by Pauling's radius-ratio rule",
+          "title": "Pauling Cn"
+        }
+      },
+      "required": [
+        "shannon_cn",
+        "shannon_consistent",
+        "center_radius",
+        "ligand_radius",
+        "expected_bond_length",
+        "radius_ratio"
+      ],
+      "title": "ShannonEnvironment",
+      "type": "object"
+    },
+    "Site": {
+      "properties": {
+        "index": {
+          "title": "Index",
+          "type": "integer"
+        },
+        "label": {
+          "description": "Element + running number per element, 1-based (VESTA style, e.g. Bi7)",
+          "title": "Label",
+          "type": "string"
+        },
+        "element": {
+          "title": "Element",
+          "type": "string"
+        },
+        "occupancy": {
+          "default": 1.0,
+          "title": "Occupancy",
+          "type": "number"
+        },
+        "frac": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Frac",
+          "type": "array"
+        },
+        "cart": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Cart",
+          "type": "array"
+        },
+        "wyckoff": {
+          "description": "Multiplicity + Wyckoff letter in the conventional cell, e.g. 4b",
+          "title": "Wyckoff",
+          "type": "string"
+        },
+        "site_symmetry": {
+          "description": "Oriented site-symmetry symbol (spglib), e.g. m-3m, .m.",
+          "title": "Site Symmetry",
+          "type": "string"
+        },
+        "orbit": {
+          "description": "Index of the first site symmetry-equivalent to this one",
+          "title": "Orbit",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "index",
+        "label",
+        "element",
+        "frac",
+        "cart",
+        "wyckoff",
+        "site_symmetry",
+        "orbit"
+      ],
+      "title": "Site",
+      "type": "object"
+    },
+    "SiteEnvironmentRecord": {
+      "description": "Step 1\u20132 of the workflow for one symmetry-distinct site.",
+      "properties": {
+        "site_label": {
+          "title": "Site Label",
+          "type": "string"
+        },
+        "element": {
+          "title": "Element",
+          "type": "string"
+        },
+        "wyckoff": {
+          "title": "Wyckoff",
+          "type": "string"
+        },
+        "site_symmetry": {
+          "title": "Site Symmetry",
+          "type": "string"
+        },
+        "multiplicity_in_cell": {
+          "title": "Multiplicity In Cell",
+          "type": "integer"
+        },
+        "representative_frac": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Representative Frac",
+          "type": "array"
+        },
+        "oxidation_state": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Oxidation State"
+        },
+        "coordination_number": {
+          "title": "Coordination Number",
+          "type": "integer"
+        },
+        "ligand_formula": {
+          "title": "Ligand Formula",
+          "type": "string"
+        },
+        "shape": {
+          "title": "Shape",
+          "type": "string"
+        },
+        "forms_polyhedron": {
+          "title": "Forms Polyhedron",
+          "type": "boolean"
+        },
+        "reason": {
+          "description": "Why the site can or cannot be a polyhedron centre",
+          "title": "Reason",
+          "type": "string"
+        },
+        "symmetry_consistent": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Polyhedron invariant under the site-symmetry group",
+          "title": "Symmetry Consistent"
+        },
+        "shannon": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ShannonEnvironment"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "ionic_radius": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Shannon (1976) ionic radius of this ion in \u00c5 at its observed coordination (nearest tabulated CN)",
+          "title": "Ionic Radius"
+        },
+        "ionic_radius_cn": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Coordination number the ionic radius is tabulated for",
+          "title": "Ionic Radius Cn"
+        },
+        "type_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Type Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "site_label",
+        "element",
+        "wyckoff",
+        "site_symmetry",
+        "multiplicity_in_cell",
+        "representative_frac",
+        "oxidation_state",
+        "coordination_number",
+        "ligand_formula",
+        "shape",
+        "forms_polyhedron",
+        "reason",
+        "symmetry_consistent",
+        "type_ids"
+      ],
+      "title": "SiteEnvironmentRecord",
+      "type": "object"
+    },
+    "Source": {
+      "properties": {
+        "kind": {
+          "enum": [
+            "materials_project",
+            "optimade",
+            "example",
+            "cif"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Materials Project id, optimade:<provider>:<id>, example name, or file name",
+          "title": "Id"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "retrieved_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ISO-8601 UTC time of retrieval",
+          "title": "Retrieved At"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "Source",
+      "type": "object"
+    },
+    "SpaceGroup": {
+      "properties": {
+        "symbol": {
+          "title": "Symbol",
+          "type": "string"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "crystal_system": {
+          "title": "Crystal System",
+          "type": "string"
+        }
+      },
+      "required": [
+        "symbol",
+        "number",
+        "crystal_system"
+      ],
+      "title": "SpaceGroup",
+      "type": "object"
+    },
+    "StructureRecord": {
+      "properties": {
+        "schema": {
+          "const": "crystallography/structure@1",
+          "default": "crystallography/structure@1",
+          "title": "Schema",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/Source"
+        },
+        "formula": {
+          "title": "Formula",
+          "type": "string"
+        },
+        "reduced_formula": {
+          "title": "Reduced Formula",
+          "type": "string"
+        },
+        "n_sites": {
+          "title": "N Sites",
+          "type": "integer"
+        },
+        "density": {
+          "description": "g/cm^3",
+          "title": "Density",
+          "type": "number"
+        },
+        "lattice": {
+          "$ref": "#/$defs/LatticeRecord"
+        },
+        "space_group": {
+          "$ref": "#/$defs/SpaceGroup"
+        },
+        "sites": {
+          "items": {
+            "$ref": "#/$defs/Site"
+          },
+          "title": "Sites",
+          "type": "array"
+        }
+      },
+      "required": [
+        "source",
+        "formula",
+        "reduced_formula",
+        "n_sites",
+        "density",
+        "lattice",
+        "space_group",
+        "sites"
+      ],
+      "title": "StructureRecord",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "schema": {
+      "const": "crystallography/polyhedra@1",
+      "default": "crystallography/polyhedra@1",
+      "title": "Schema",
+      "type": "string"
+    },
+    "structure": {
+      "$ref": "#/$defs/StructureRecord"
+    },
+    "settings": {
+      "$ref": "#/$defs/AnalysisSettings"
+    },
+    "site_environments": {
+      "items": {
+        "$ref": "#/$defs/SiteEnvironmentRecord"
+      },
+      "title": "Site Environments",
+      "type": "array"
+    },
+    "polyhedron_types": {
+      "items": {
+        "$ref": "#/$defs/PolyhedronTypeRecord"
+      },
+      "title": "Polyhedron Types",
+      "type": "array"
+    },
+    "polyhedra": {
+      "items": {
+        "$ref": "#/$defs/Polyhedron"
+      },
+      "title": "Polyhedra",
+      "type": "array"
+    },
+    "crystal_chemistry": {
+      "$ref": "#/$defs/CrystalChemistry"
+    }
+  },
+  "required": [
+    "structure",
+    "settings",
+    "site_environments",
+    "polyhedron_types",
+    "polyhedra",
+    "crystal_chemistry"
+  ],
+  "title": "PolyhedraReport",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}
