@@ -1,37 +1,38 @@
 .stage {
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-md);
+  --stage-line: color-mix(in srgb, var(--viewport-ink) 14%, transparent);
+  border: 1px solid var(--stage-line);
+  border-radius: var(--r-sm);
   overflow: hidden;
-  background: var(--surface-2);
-  color: var(--ink);
+  background: transparent;
+  color: var(--viewport-ink);
   isolation: isolate;
 }
 .toolbar {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 10px;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--line);
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--stage-line);
 }
 .overline {
-  font: 500 10px var(--font-mono);
+  font: 500 var(--fs-label) var(--font-mono);
   text-transform: uppercase;
-  letter-spacing: 0.13em;
+  letter-spacing: 0.08em;
 }
 .dimensions {
-  color: var(--ink-3);
-  font: 10px var(--font-mono);
+  opacity: 0.6;
+  font: var(--fs-label) var(--font-mono);
 }
 .toolbar button {
   margin-left: auto;
   background: transparent;
-  color: var(--ink-2);
-  border: 1px solid var(--line-strong);
+  color: inherit;
+  border: 1px solid var(--stage-line);
   border-radius: var(--r-pill);
-  min-height: 32px;
-  padding: 6px 12px;
-  font: 11px var(--font-ui);
+  min-height: 24px;
+  padding: 0 10px;
+  font: var(--fs-label) var(--font-ui);
   cursor: pointer;
 }
 .toolbar button:hover {
@@ -45,13 +46,17 @@
 .canvas {
   position: relative;
   overflow: hidden;
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
   background: var(--viewport-bg);
 }
 .canvas .image {
   display: block;
-  width: 100%;
+  width: auto;
+  max-width: 100%;
   height: auto;
-  max-height: none;
+  max-height: min(52vh, 440px);
   border-radius: 0;
 }
 .assembly,
@@ -116,10 +121,10 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  padding: 11px 14px;
-  border-top: 1px solid var(--line);
-  font: 11px / 1.5 var(--font-ui);
-  color: var(--ink-2);
+  padding: 6px 10px;
+  border-top: 1px solid var(--stage-line);
+  font: var(--fs-label) / 16px var(--font-ui);
+  color: color-mix(in srgb, var(--viewport-ink) 75%, transparent);
 }
 .statusDot {
   width: 6px;
@@ -139,7 +144,7 @@
 }
 .preserved {
   margin-left: auto;
-  color: var(--ink-3);
+  opacity: 0.6;
   font-size: 10px;
 }
 @keyframes assembleTile {

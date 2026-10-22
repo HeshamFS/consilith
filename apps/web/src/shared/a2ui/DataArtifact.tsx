@@ -1,4 +1,10 @@
+import { useId } from "react";
+import plot from "./artifact-data.module.css";
+import { parsePlotArtifact, tableToCsv } from "./artifactData";
+import { ChartView } from "./Chart";
+import { DataTableView } from "./DataTableView";
 import { JsonPreview } from "./JsonPreview";
+import type { DataTableData } from "./types";
 /** Generic formats: bounded label map, numeric XY series, table, or structural inspection. */
 export function DataArtifact({ data }: { data: unknown }) {
   const d = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
@@ -96,71 +102,11 @@ export function DataArtifact({ data }: { data: unknown }) {
       </svg>
     );
   }
-  if (
-    Array.isArray(d.x) &&
-    Array.isArray(d.y) &&
-    d.x.length === d.y.length &&
-    d.x.length > 1 &&
-    d.x.length <= 20000 &&
-    [...d.x, ...d.y].every((v) => typeof v === "number" && Number.isFinite(v))
-  ) {
-    const x = d.x as number[],
-      y = d.y as number[];
-    const xmin = Math.min(...x),
-      xrange = Math.max(...x) - xmin || 1,
-      ymin = Math.min(...y),
-      yrange = Math.max(...y) - ymin || 1;
-    const title = typeof d.title === "string" ? d.title.slice(0, 200) : undefined;
-    const xLabel = typeof d.xLabel === "string" ? d.xLabel.slice(0, 120) : undefined;
-    const yLabel = typeof d.yLabel === "string" ? d.yLabel.slice(0, 120) : undefined;
-    return (
-      <div>
-        {title ? <h4>{title}</h4> : null}
-        {yLabel ? <p>{yLabel}</p> : null}
-        <svg viewBox="0 0 640 260" role="img" aria-label={title ?? "Stored XY series"}>
-          <polyline
-            points={x
-              .map(
-                (v, i) =>
-                  `${20 + ((v - xmin) / xrange) * 600},${240 - (((y[i] ?? ymin) - ymin) / yrange) * 220}`,
-              )
-              .join(" ")}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          />
-        </svg>
-        {xLabel ? <p style={{ textAlign: "center" }}>{xLabel}</p> : null}
-      </div>
-    );
-  }
-  if (Array.isArray(d.rows) && d.rows.length <= 1000 && Array.isArray(d.columns)) {
-    return (
-      <table>
-        <thead>
-          <tr>
-            {d.columns.map((c, i) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: immutable artifact column position
-              <th key={`${i}-${c}`}>{String(c)}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {d.rows.map((row, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: immutable artifact row position
-            <tr key={`row-${i}`}>
-              {Array.isArray(row)
-                ? row.map((v, j) => (
-                    // biome-ignore lint/suspicious/noArrayIndexKey: immutable table cell coordinates
-                    <td key={`${i}-${j}`}>{String(v)}</td>
-                  ))
-                : null}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    );
-  }
+  const parsed = parsePlotArtifact(data);
+  if (parsed?.kind === "chart")
+    return <ChartView data={parsed.chart} title={parsed.chart.title ?? "Stored series"} />;
+  if (parsed?.kind === "table")
+    return <PluginTable table={parsed.table} caption={parsed.caption} />;
   return <JsonPreview value={data} limit={20000} />;
 }
 
@@ -185,4 +131,48 @@ function scalarColor(fraction: number, diverging: boolean) {
   const a = stops[lo] ?? [0, 0, 0],
     b = stops[lo + 1] ?? a;
   return `rgb(${a.map((v, i) => Math.round(v + ((b[i] ?? v) - v) * mix)).join(" ")})`;
+}
+
+/** A stored table in V's DataTableView, with the caption the plugin gave it and a CSV download of
+ * every stored row (the view itself shows at most 200). */
+export function PluginTable({
+  table,
+  caption,
+  title,
+}: {
+  table: DataTableData;
+  caption?: string | undefined;
+  title?: string | undefined;
+}) {
+  const note = useId();
+  const download = () => {
+    const url = URL.createObjectURL(new Blob([tableToCsv(table)], { type: "text/csv" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${(title ?? table.title ?? "table").replace(/[^a-zA-Z0-9._-]+/g, "_")}.csv`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  return (
+    <div className={plot.table}>
+      <DataTableView data={table} {...(title ? { title } : {})} />
+      <div className={plot.tableFoot}>
+        {caption ? (
+          <p className={plot.caption} id={note}>
+            {caption}
+          </p>
+        ) : (
+          <span />
+        )}
+        <button
+          type="button"
+          className={plot.csv}
+          onClick={download}
+          aria-describedby={caption ? note : undefined}
+        >
+          Download CSV
+        </button>
+      </div>
+    </div>
+  );
 }

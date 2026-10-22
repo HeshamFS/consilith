@@ -1,0 +1,184 @@
+/* The workspace assembling on the canvas. No frame and no fixed height: a title line, then the
+   panels at their natural size. Only the skeleton reserves an area while the agent composes.
+   Colours come from tokens only. */
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  min-width: 0;
+}
+.titles {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 2px;
+  min-width: 0;
+}
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: -0.01em;
+}
+.intent {
+  margin: 0;
+  color: var(--ink-3);
+  font: var(--fs-small) / 20px var(--font-ui);
+}
+
+/* One status chip: the current composer step and the seconds so far while it works, then the
+   result ("Agent composed"). It sits on the title line, so nothing below moves when it changes. */
+.pill {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  max-width: 50%;
+  height: 24px;
+  margin-top: 2px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--ink-2);
+  font: 500 var(--fs-label) / 16px var(--font-mono);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.step {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  text-overflow: ellipsis;
+}
+.elapsed {
+  flex: none;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--stage-accent, var(--ink-3));
+  animation: pulse 900ms var(--ease) infinite;
+}
+
+.body {
+  position: relative;
+  min-width: 0;
+}
+/* Only the skeleton reserves room; the finished workspace takes the height it needs. */
+.body[data-skeleton] {
+  min-height: clamp(360px, calc(100vh - 300px), 680px);
+}
+.surface {
+  position: relative;
+  min-width: 0;
+}
+.message {
+  display: flex;
+  justify-content: center;
+  padding: 48px 0;
+}
+
+/* Skeleton boxes: positioned in pixels of the body, each animating left/top/width/height. */
+.boxes {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transition: opacity 260ms var(--ease);
+}
+.boxes[data-leaving="true"] {
+  opacity: 0;
+}
+.box {
+  position: absolute;
+  overflow: hidden;
+  border-radius: var(--r-card);
+  background: var(--skeleton);
+  transition:
+    left 600ms ease-in-out,
+    top 600ms ease-in-out,
+    width 600ms ease-in-out,
+    height 600ms ease-in-out,
+    opacity 400ms ease-in-out;
+  animation: morph-a 600ms ease-in-out;
+}
+.box[data-parity="1"] {
+  animation-name: morph-b;
+}
+.box::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, var(--skeleton-hi) 50%, transparent 100%);
+  background-size: 220% 100%;
+  animation: sweep 1.6s linear infinite;
+}
+.boxes[data-landing="true"] .box {
+  animation: none;
+}
+
+@keyframes morph-a {
+  50% {
+    filter: opacity(0.72);
+  }
+}
+@keyframes morph-b {
+  50% {
+    filter: opacity(0.72);
+  }
+}
+@keyframes sweep {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Reduced motion: one static skeleton, no morph, no sweep, no pulse. */
+@media (prefers-reduced-motion: reduce) {
+  .box,
+  .box::after,
+  .dot {
+    transition: none;
+    animation: none;
+  }
+  .boxes {
+    transition: none;
+  }
+}
+.stage[data-reduced="true"] .box,
+.stage[data-reduced="true"] .box::after {
+  transition: none;
+  animation: none;
+}
+
+@media (max-width: 720px) {
+  .head {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .pill {
+    max-width: 100%;
+  }
+}

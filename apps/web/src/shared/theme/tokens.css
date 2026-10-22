@@ -42,6 +42,8 @@
   --shadow: 0 1px 2px rgb(28 27 24 / 6%), 0 12px 32px rgb(28 27 24 / 8%);
   --shadow-strong: 0 2px 4px rgb(28 27 24 / 8%), 0 24px 56px rgb(28 27 24 / 14%);
   --scrim: rgb(28 27 24 / 32%);
+  --skeleton: #ece9e1;
+  --skeleton-hi: #f7f5f0;
 
   --seat-blue: #2a50cc;
   --seat-magenta: #c4296a;
@@ -84,6 +86,8 @@
   --shadow: 0 1px 2px rgb(0 0 0 / 30%), 0 12px 32px rgb(0 0 0 / 35%);
   --shadow-strong: 0 2px 4px rgb(0 0 0 / 35%), 0 24px 56px rgb(0 0 0 / 50%);
   --scrim: rgb(20 19 17 / 60%);
+  --skeleton: #34342f;
+  --skeleton-hi: #3f3f39;
 
   --seat-blue: #7c9bff;
   --seat-magenta: #ff7fb5;
@@ -126,6 +130,8 @@
     --shadow: 0 1px 2px rgb(0 0 0 / 30%), 0 12px 32px rgb(0 0 0 / 35%);
     --shadow-strong: 0 2px 4px rgb(0 0 0 / 35%), 0 24px 56px rgb(0 0 0 / 50%);
     --scrim: rgb(20 19 17 / 60%);
+    --skeleton: #34342f;
+    --skeleton-hi: #3f3f39;
     --seat-blue: #7c9bff;
     --seat-magenta: #ff7fb5;
     --seat-teal: #5fd3d9;
@@ -148,8 +154,39 @@
   }
 }
 
+/* The model viewport follows the theme: sand with ink on Paper, graphite on Stage. */
 :root {
+  --viewport-bg: #efece4;
+  --viewport-ink: #1c1b18;
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+}
+:root[data-theme="dark"] {
   --viewport-bg: #242522;
   --viewport-ink: #f0eee6;
-  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --viewport-bg: #242522;
+    --viewport-ink: #f0eee6;
+  }
+}
+
+/* Compact scale for generative UI (System design: Body 15/24, Small 13/20, Label 11/16, Data 13/20).
+   Panels, fields, tables and cards read their sizes from here. */
+:root {
+  /* A notch denser (Hesham, 2026-10-22): the workspace shares the canvas with the docked chat. */
+  --fs-body: 13px;
+  --fs-small: 11.5px;
+  --fs-label: 10.5px;
+  --fs-data: 12px;
+  --lh-body: 1.45;
+  --ctl-h: 28px;
+  --pad-panel: 12px;
+  --pad-panel-tight: 10px;
+  --gap-section: 10px;
+  --gap-field: 6px;
+  --r-card: 12px;
+  --row-h: 26px;
+  --assemble-rise: 6px;
+  --assemble-ms: 220ms;
 }

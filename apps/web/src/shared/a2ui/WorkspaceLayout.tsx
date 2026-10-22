@@ -1,4 +1,5 @@
-import { Children, type ReactNode, useState } from "react";
+import { Children, type CSSProperties, type ReactNode, useState } from "react";
+import { gridCols, splitTemplate } from "./planGeometry";
 import type { Component } from "./types";
 import s from "./workspace-layout.module.css";
 
@@ -21,6 +22,12 @@ export function Layout({
       data-emphasis={c.emphasis}
       data-density={c.density}
       aria-label={c.title || undefined}
+      style={
+        {
+          ["--tpl" as string]: splitTemplate(c.ratio, c.children.length),
+          ["--cols" as string]: gridCols(c.children.length),
+        } as CSSProperties
+      }
     >
       {c.title ? (
         <header className={s.heading}>
@@ -53,6 +60,7 @@ export function Layout({
               key={c.children[i]}
               id={`${c.id}-${c.children[i]}-panel`}
               role="tabpanel"
+              className={s.tabpanel}
               aria-labelledby={`${c.id}-${c.children[i]}-tab`}
               hidden={c.children[i] !== active}
             >

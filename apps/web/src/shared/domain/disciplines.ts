@@ -75,8 +75,20 @@ export type StudioId = string;
 export type FieldDef = {
   name: string;
   label: string;
-  kind: "number" | "integer" | "text" | "choice" | "list" | "object";
+  kind:
+    | "number"
+    | "integer"
+    | "text"
+    | "choice"
+    | "list"
+    | "object"
+    | "boolean"
+    | "date"
+    | "multichoice"
+    | "artifact";
   unit?: string;
+  /** A text field written as paragraphs. */
+  multiline?: boolean;
   min?: number | null;
   max?: number | null;
   choices?: string[];

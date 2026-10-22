@@ -1,5 +1,7 @@
 import { Stamp, type StampKind } from "@/shared/ui";
 import s from "./a2ui.module.css";
+import { parsePlotArtifact } from "./artifactData";
+import { DataArtifact } from "./DataArtifact";
 import { JsonPreview } from "./JsonPreview";
 
 export type ResultKind = "number" | "text" | "category" | "json" | "artifact";
@@ -23,8 +25,15 @@ export function ResultValue({
     <div>
       {result.kind === "artifact" ? (
         <span>Artifact output · {result.artifacts?.length ?? 0} files</span>
+      ) : result.kind === "json" && parsePlotArtifact(result.value) ? (
+        // a table or chart a tool returned as a value: drawn, never dumped as JSON
+        <DataArtifact data={result.value} />
       ) : result.kind === "json" ? (
         <JsonPreview value={result.value} />
+      ) : typeof result.value === "string" &&
+        (result.value.includes("\n") || result.value.length > 160) ? (
+        // a report-like text (aligned columns, many lines): kept as written, in a scroll box
+        <pre className={s.resultText}>{result.value}</pre>
       ) : (
         <span style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
           {String(result.value ?? "")}

@@ -1,21 +1,23 @@
 .surface {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--gap-section);
   min-width: 0;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
 }
 
 .column {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--gap-section);
   min-width: 0;
 }
 
 .row {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--gap-section);
   min-width: 0;
 }
 
@@ -26,29 +28,43 @@
 .card,
 .panel {
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--r-card);
   background: var(--surface);
-  padding: 14px 16px;
+  padding: var(--pad-panel);
   min-width: 0;
 }
 
 .panel {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--gap-section);
 }
 
+.panel p {
+  margin: 0;
+}
+
+/* Every panel opens with one header row: title, status chip, a small action area. */
 .panelHead {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  min-height: 24px;
 }
 
 .panelTitle {
   margin: 0;
-  font-size: 14px;
-  font-weight: 600;
+  min-width: 0;
+  font: 600 13px / 18px var(--font-ui);
+  letter-spacing: -0.005em;
+}
+
+.panelAside {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 6px;
 }
 
 .panelBody {
@@ -56,13 +72,58 @@
   flex-direction: column;
 }
 
+.panelFoot {
+  min-width: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+/* A section eyebrow: 11 px mono caps, the design's Label style. */
+.eyebrowRow {
+  margin: 2px 0 -2px;
+  color: var(--ink-3);
+  font: 500 var(--fs-label) / 16px var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--ink-2);
+  font: 500 var(--fs-label) / 1 var(--font-ui);
+  white-space: nowrap;
+}
+.pill[data-tone="ok"] {
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+.pill[data-tone="warn"] {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+.pill[data-tone="bad"] {
+  background: var(--bad-bg);
+  color: var(--bad-fg);
+}
+.pill[data-tone="work"] {
+  background: color-mix(in srgb, var(--seat-blue) 14%, var(--surface));
+  color: var(--seat-blue);
+}
+
+/* Provenance of a result: a muted one-line mono note (see Provenance.tsx for the copyable one). */
 .prov {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-label);
   color: var(--ink-3);
-  border-top: 1px solid var(--line);
-  padding-top: 8px;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .divider {
@@ -73,29 +134,30 @@
 
 .h1 {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: 24px;
+  font: 600 15px / 21px var(--font-ui);
+  letter-spacing: -0.01em;
 }
 
 .h2 {
   margin: 0;
-  font-size: 17px;
+  font: 600 13.5px / 20px var(--font-ui);
 }
 
 .h3 {
   margin: 0;
-  font-size: 15px;
+  font: 600 var(--fs-body) / 20px var(--font-ui);
 }
 
 .body {
   margin: 0;
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
 }
 
 .caption {
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--fs-small);
+  line-height: 1.4;
   color: var(--ink-2);
 }
 
@@ -104,9 +166,9 @@
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 2px 12px;
   align-items: center;
-  padding: 7px 0;
+  padding: 6px 0;
   border-bottom: 1px solid var(--line);
-  font-size: 13.5px;
+  font-size: var(--fs-body);
 }
 
 .valueRow:last-child {
@@ -133,7 +195,7 @@
 
 .num {
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: var(--fs-data);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
@@ -170,11 +232,11 @@
 }
 
 .chip {
-  padding: 5px 10px;
+  padding: 3px 10px;
   border-radius: 999px;
   border: 1px solid var(--line-strong);
   background: var(--surface);
-  font-size: 12.5px;
+  font-size: var(--fs-small);
 }
 
 .warning,
@@ -183,9 +245,9 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 8px 12px;
   border-radius: 10px;
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.45;
 }
 
@@ -205,11 +267,27 @@
   color: var(--ink-2);
 }
 
+.decisionPanel {
+  display: grid;
+  gap: 8px;
+  padding: var(--pad-panel-tight);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+.decisionHead {
+  margin: 0;
+  color: var(--ink-2);
+  font: 500 var(--fs-label) / 16px var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 .decisionLog {
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 12.5px;
+  color: var(--ink-2);
+  font: var(--fs-small) / 18px var(--font-ui);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -220,8 +298,8 @@
   flex-direction: column;
   gap: 8px;
   padding: 12px 14px;
-  border-radius: 12px;
-  border: 1.5px solid var(--wait-fg);
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-strong);
   background: var(--wait-bg);
 }
 
@@ -229,19 +307,19 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13.5px;
+  font-size: var(--fs-body);
 }
 
 .reason input {
   width: 100%;
-  height: 40px;
+  height: var(--ctl-h);
   border-radius: 8px;
   border: 1px solid var(--line-strong);
   background: var(--surface);
   color: var(--ink);
   padding: 0 10px;
   font: inherit;
-  font-size: 13.5px;
+  font-size: var(--fs-small);
 }
 
 .approvalBtns {
@@ -251,11 +329,11 @@
 
 .accept,
 .decline {
-  height: 38px;
+  height: var(--ctl-h);
   padding: 0 14px;
-  border-radius: 9px;
+  border-radius: 8px;
   font: inherit;
-  font-size: 13.5px;
+  font-size: var(--fs-small);
   font-weight: 600;
   cursor: pointer;
 }
@@ -283,192 +361,387 @@
   color: var(--bad-fg);
 }
 
+/* Inputs -------------------------------------------------------------------------------------
+   One row per field: label left (12.5 px, ink-2), control right (32 px). Wide controls and long
+   values (text, lists, files, multi-choice) stack under their label. */
+
 .inputField {
   display: grid;
-  gap: 6px;
-  margin-block: 8px;
+  grid-template-columns: minmax(0, 1fr) minmax(112px, 168px);
+  align-items: center;
+  gap: 4px 12px;
+  min-width: 0;
+}
+.inputField[data-kind="text"],
+.inputField[data-kind="list"],
+.inputField[data-kind="object"],
+.inputField[data-kind="multichoice"],
+.inputField[data-kind="artifact"],
+.inputField[data-wide="true"] {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+}
+.inputField > label {
+  min-width: 0;
+  color: var(--ink-2);
+  font: 500 12.5px / 16px var(--font-ui);
+  overflow-wrap: anywhere;
+}
+.inputField > :not(label) {
+  min-width: 0;
 }
 .inputField input,
 .inputField select,
 .inputField textarea {
   width: 100%;
   box-sizing: border-box;
-  padding: 8px;
   color: var(--ink);
   background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-}
-.artifact {
-  margin: 0;
-  overflow: auto;
-}
-.artifactBrowser {
-  display: grid;
-  gap: 12px;
-  min-width: 0;
-}
-.artifactPanel {
-  min-width: 0;
-}
-.artifactTabs {
-  display: flex;
-  overflow-x: auto;
-  gap: 6px;
-  padding: 3px 2px 9px;
-}
-.artifactTabs button {
-  white-space: nowrap;
-  flex-shrink: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--r-pill);
-  background: transparent;
-  color: var(--ink-2);
-  min-height: 36px;
-  padding: 7px 12px;
-  font: 12px var(--font-ui);
-  cursor: pointer;
-}
-.artifactTabs button[aria-selected="true"] {
-  color: var(--on-accent);
-  border-color: var(--seat-blue);
-  background: var(--seat-blue);
-}
-.artifactTabs button:focus-visible {
-  outline: 2px solid var(--seat-blue);
-  outline-offset: 2px;
-}
-.artifactTabs span {
-  opacity: 0.7;
-  font-size: 10px;
-}
-.artifact img,
-.artifact svg {
-  width: 100%;
-  max-height: 420px;
-  object-fit: contain;
-}
-.artifact pre {
-  overflow: auto;
-  max-height: 320px;
-}
-.surface > .column > .row > * {
-  animation: workspace-arrive 260ms ease-out both;
-}
-@keyframes workspace-arrive {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .surface > .column > .row > * {
-    animation: none;
-  }
-}
-
-.artifactEmpty {
-  display: flex;
-  min-height: 330px;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  gap: 18px;
-  padding: 20px;
-  color: var(--ink-2);
-  background-image: radial-gradient(var(--line) 0.7px, transparent 0.7px);
-  background-size: 18px 18px;
-  border-radius: 14px;
-}
-.artifactEmpty h4 {
-  font: 400 clamp(24px, 2.4vw, 32px) / 1.18 var(--font-display);
-  letter-spacing: -0.025em;
-  max-width: 17ch;
-  margin: 0;
-  color: var(--ink);
-}
-.artifactEmpty p {
-  margin: 0;
-  max-width: 36ch;
-  font: 12px / 1.7 var(--font-ui);
-}
-.eyebrow,
-.emptyBoundary {
-  font: 10px var(--font-mono);
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-}
-.emptyBoundary {
-  padding: 7px 10px;
-  border: 1px solid var(--line);
-  border-radius: 99px;
-  letter-spacing: 0.01em;
-  text-transform: none;
-  background: var(--surface);
-}
-.inputField {
-  margin-block: 3px;
-}
-.inputField label {
-  font: 500 12px / 1.5 var(--font-ui);
-  color: var(--ink-2);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  font: 400 13px var(--font-ui);
 }
 .inputField input,
 .inputField select {
-  min-height: 44px;
-  padding: 10px 12px;
-  border-radius: 9px;
-  font: 13px var(--font-ui);
+  height: var(--ctl-h);
+  padding: 0 10px;
+}
+.inputField input[type="number"] {
+  font: 400 var(--fs-data) var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.inputField select {
+  padding-right: 24px;
+  cursor: pointer;
 }
 .inputField textarea {
-  font: 11px / 1.6 var(--font-mono);
+  padding: 8px 10px;
+  font: 400 11.5px / 1.55 var(--font-mono);
+  resize: vertical;
+}
+.inputField input:disabled,
+.inputField select:disabled,
+.inputField textarea:disabled {
+  background: var(--surface-2);
+  color: var(--ink-2);
+  cursor: not-allowed;
 }
 .inputField input:focus,
 .inputField textarea:focus,
 .inputField select:focus {
   outline: 2px solid color-mix(in srgb, var(--seat-blue) 35%, transparent);
+  outline-offset: 0;
   border-color: var(--seat-blue);
 }
+.inputField > button:not([role="switch"]) {
+  justify-self: start;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  font: 500 var(--fs-small) var(--font-ui);
+  cursor: pointer;
+}
+.conflict,
+.err,
+.inputField > .err {
+  grid-column: 1 / -1;
+}
 .conflict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
   color: var(--warn-fg);
   background: var(--warn-bg);
-  padding: 10px;
+  padding: 8px 10px;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
+/* Fields marked optional fold behind one disclosure. */
+.advanced {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+.advanced > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-2);
+  font: 500 var(--fs-label) / 16px var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  list-style: none;
+}
+.advanced > summary::-webkit-details-marker {
+  display: none;
+}
+.advanced > summary::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 140ms var(--ease);
+}
+.advanced[open] > summary::before {
+  transform: rotate(45deg);
+}
+.advanced > summary:focus-visible {
+  outline: 2px solid var(--seat-blue);
+  outline-offset: 2px;
+}
+.advancedBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-field);
+  padding-top: var(--gap-section);
+}
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-field);
+}
+
+/* A file field is a compact drop zone; the browser's own control stays hidden but reachable. */
+.drop {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font: 400 var(--fs-small) / 1.4 var(--font-ui);
+  cursor: pointer;
+  transition:
+    border-color 140ms var(--ease),
+    background 140ms var(--ease);
+}
+.drop:hover,
+.drop[data-over="true"] {
+  border-color: var(--seat-blue);
+  background: color-mix(in srgb, var(--seat-blue) 8%, var(--surface));
+}
+.drop[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.6;
+}
+.drop:has(input:focus-visible) {
+  outline: 2px solid var(--seat-blue);
+  outline-offset: 2px;
+}
+.drop .inputFile {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: inherit;
+}
+.dropIcon {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+}
+.dropText {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+.dropText strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+.dropText span {
+  color: var(--ink-3);
+  font-size: var(--fs-label);
+}
+
+/* Model space ------------------------------------------------------------------------------- */
+
+.artifactPanel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+/* When the panel is given more height than it needs (the model space beside a long control desk),
+   the empty viewport fills it rather than leaving a gap under it. */
+.artifactPanel > .artifactEmpty {
+  flex: 1 1 auto;
+}
+.artifactBrowser {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+}
+/* A file never widens its column: the panel and everything in it shrink to fit. */
+.artifactBrowser > [role="tabpanel"] {
+  min-width: 0;
+}
+.artifactTabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  width: fit-content;
+  max-width: 100%;
+}
+.artifactTabs button {
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--ink-2);
+  height: 26px;
+  padding: 0 11px;
+  font: 500 var(--fs-small) var(--font-ui);
+  cursor: pointer;
+}
+.artifactTabs button:hover {
+  color: var(--ink);
+}
+.artifactTabs button[aria-selected="true"] {
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
+}
+.artifactTabs button:focus-visible {
+  outline: 2px solid var(--seat-blue);
+  outline-offset: 1px;
+}
+.artifactTabs span {
+  opacity: 0.7;
+  font-size: var(--fs-label);
+}
+.tabCount {
+  order: 99;
+  margin-left: 2px;
+  padding: 0 6px;
+  color: var(--ink-3);
+  font: 500 var(--fs-label) / 16px var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
 .artifact {
-  padding: 18px;
+  margin: 0;
+  min-width: 0;
+  overflow: auto;
+  padding: 12px;
   background: var(--viewport-bg);
   color: var(--viewport-ink);
-  border-radius: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.artifact > img,
+.artifact > svg {
+  width: 100%;
+  max-height: 440px;
+  object-fit: contain;
+}
+.artifact pre {
+  overflow: auto;
+  max-height: 300px;
+  margin: 0;
+  font: 11px / 1.5 var(--font-mono);
 }
 .artifact figcaption {
-  font: 11px var(--font-mono);
-  padding-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  font: 500 var(--fs-label) / 16px var(--font-mono);
+  letter-spacing: 0.04em;
   opacity: 0.85;
 }
 .artifact a {
+  display: inline-block;
+  margin-top: 8px;
+  color: var(--viewport-ink);
+  font-size: var(--fs-small);
+}
+.artifactProv {
+  margin-top: 10px;
+  color: color-mix(in srgb, var(--viewport-ink) 62%, transparent);
+}
+.artifactProv button {
+  color: inherit;
+}
+.artifactProv button:hover {
+  background: rgb(255 255 255 / 10%);
   color: var(--viewport-ink);
 }
-.artifact small {
-  display: block;
-  overflow-wrap: anywhere;
-  font: 9px / 1.6 var(--font-mono);
-  opacity: 0.7;
-  margin-top: 12px;
+.artifactEmpty {
+  display: flex;
+  min-height: 220px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 8px;
+  padding: 14px;
+  color: color-mix(in srgb, var(--viewport-ink) 70%, transparent);
+  background-color: var(--viewport-bg);
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--viewport-ink) 28%, transparent) 0.7px,
+    transparent 0.7px
+  );
+  background-size: 18px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
 }
-.artifact pre {
-  font: 10px / 1.5 var(--font-mono);
+.artifactEmpty h4 {
+  margin: 0;
+  max-width: 28ch;
+  color: var(--viewport-ink);
+  font: 600 13.5px / 1.3 var(--font-ui);
 }
+.artifactEmpty p {
+  margin: 0;
+  max-width: 40ch;
+  font: 12px / 1.55 var(--font-ui);
+}
+.eyebrow,
+.emptyBoundary {
+  font: 500 var(--fs-label) / 16px var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.emptyBoundary {
+  padding: 3px 10px;
+  border: 1px solid color-mix(in srgb, var(--viewport-ink) 24%, transparent);
+  border-radius: 99px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: color-mix(in srgb, var(--viewport-ink) 82%, transparent);
+  background: color-mix(in srgb, var(--viewport-ink) 6%, var(--viewport-bg));
+}
+
+/* Image sequences (dark stage). */
 .sequence {
   display: grid;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  gap: 8px;
   font: 12px / 1.5 var(--font-ui);
 }
 .sequence p {
@@ -476,13 +749,23 @@
 }
 .sequenceFrame {
   min-height: 180px;
+  min-width: 0;
   display: grid;
   place-items: center;
+}
+/* The stored frame fits its canvas at any width, keeping its aspect. */
+.sequenceFrame img {
+  display: block;
+  max-width: 100%;
+  max-height: 460px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
 }
 .sequenceControls {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
 }
 .sequenceControls button,
@@ -491,7 +774,8 @@
   background: transparent;
   border: 1px solid currentColor;
   border-radius: 8px;
-  padding: 8px 12px;
+  height: 28px;
+  padding: 0 10px;
   font: inherit;
 }
 .sequenceControls option {
@@ -503,7 +787,7 @@
 }
 .sequencePosition {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   font-family: var(--font-mono);
 }
 .sequencePosition input {
@@ -512,13 +796,13 @@
 }
 .sequenceNote {
   opacity: 0.7;
-  font-size: 11px;
+  font-size: var(--fs-label);
 }
 .reviewField {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px 8px;
 }
 .reviewField p,
 .reviewField small {
@@ -526,29 +810,404 @@
   margin: 0;
 }
 .jsonPreview {
-  max-height: 280px;
+  display: block;
+  position: static;
+  margin: 0;
+  max-height: 260px;
   max-width: 100%;
   overflow: auto;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font: 11px / 1.5 var(--font-mono);
 }
+/* A flat JSON object as a key/value list: normal flow, so nothing can overlap its label. */
+.kv {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  min-width: 0;
+}
+.kvRow {
+  display: grid;
+  grid-template-columns: minmax(72px, 38%) minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: baseline;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--line);
+}
+.kvRow:last-child {
+  border-bottom: 0;
+}
+.kvRow dt {
+  color: var(--ink-3);
+  font: 400 var(--fs-label) / 1.4 var(--font-mono);
+  overflow-wrap: anywhere;
+}
+.kvRow dd {
+  margin: 0;
+  min-width: 0;
+  font: 400 12px / 1.45 var(--font-mono);
+  overflow-wrap: anywhere;
+}
+.kvText[data-clamped="true"] {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+.kvNum {
+  font-variant-numeric: tabular-nums;
+}
+.kvHash {
+  font-size: 12px;
+  color: var(--ink);
+}
+.kvMore {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: 500 var(--fs-label) / 1.6 var(--font-ui);
+  text-decoration: underline;
+  cursor: pointer;
+}
 .jsonDetails summary {
   cursor: pointer;
-  padding-block: 8px;
+  padding-block: 6px;
   font: 11px / 1.5 var(--font-mono);
 }
-.artifactEmpty {
-  color: #bdbbb3;
-  background-color: var(--viewport-bg);
-  background-image: radial-gradient(#50514b 0.7px, transparent 0.7px);
+
+/* Job and evidence panels -------------------------------------------------------------------- */
+
+.jobMeta {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-small);
+  line-height: 1.45;
 }
-.artifactEmpty h4 {
-  color: var(--viewport-ink);
-  font-style: italic;
+.jobFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
 }
-.artifactEmpty .emptyBoundary {
-  color: #d5d4ca;
-  border-color: #55564d;
-  background: #2c2e28;
+.evidence {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.evidenceRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 10px;
+  min-height: var(--row-h);
+  padding: 5px 0;
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-small);
+}
+.evidenceRow:first-child {
+  border-top: 0;
+}
+.evidenceName {
+  min-width: 0;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.evidenceMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.evidenceStatus {
+  color: var(--ink-3);
+  font: 500 var(--fs-label) / 16px var(--font-mono);
+}
+.evidenceRow > [data-provenance] {
+  grid-column: 1 / -1;
+}
+
+/* A surface is a size container: layouts answer to the width they are given (the 460 px chat
+   sheet, a studio column), not to the viewport. */
+.surface {
+  container: a2ui / inline-size;
+}
+.surface:not([data-assembly]) > .column > .row > * {
+  animation: workspace-arrive 220ms var(--ease) both;
+}
+@keyframes workspace-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .surface:not([data-assembly]) > .column > .row > * {
+    animation: none;
+  }
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: var(--r-pill);
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* ResultTable and MetricGrid */
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-section);
+  min-width: 0;
+  padding: var(--pad-panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+.tableScroll {
+  min-width: 0;
+  overflow-x: auto;
+}
+.resultTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-data);
+  font-variant-numeric: tabular-nums;
+}
+.resultTable thead th {
+  padding: 0 0 6px;
+  color: var(--ink-3);
+  font: 500 var(--fs-label) / 16px var(--font-mono);
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.resultTable thead th:last-child,
+.resultTable td {
+  text-align: right;
+}
+.resultTable tbody th,
+.resultTable td {
+  padding: 6px 0;
+  min-height: var(--row-h);
+  border-top: 1px solid var(--line);
+  vertical-align: top;
+  font-weight: 400;
+}
+.resultTable tbody th {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  text-align: left;
+}
+.resultTable tbody th > span:first-child {
+  font-weight: 500;
+}
+.resultTable tbody th .prov {
+  padding: 0;
+  border: 0;
+  font-size: 10.5px;
+}
+.resultTable td .qty {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+/* Structured and long text values read left to right; only numbers align right. */
+.resultTable td:has(.kv),
+.resultTable td:has(.resultText),
+.resultTable td:has(table) {
+  text-align: left;
+}
+.resultText {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm, 6px);
+  background: var(--surface-2);
+  color: var(--ink);
+  font: 400 11.5px / 1.5 var(--font-mono);
+  white-space: pre;
+  text-align: left;
+}
+.resultTable[data-variant="compact"] tbody th,
+.resultTable[data-variant="compact"] td {
+  padding: 5px 0;
+  font-size: 12.5px;
+}
+.resultTable[data-variant="compact"] tbody th .prov {
+  display: none;
+}
+.resultTable tr[data-status]:not([data-status="current"]) {
+  opacity: 0.72;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 148px), 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tile {
+  display: grid;
+  align-content: space-between;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.tile[data-status]:not([data-status="current"]) {
+  border-style: dashed;
+  opacity: 0.8;
+}
+.tileLabel {
+  color: var(--ink-2);
+  font: 500 var(--fs-label) / 16px var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.tileValue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  min-width: 0;
+}
+.metricNum {
+  font: 600 16px / 1.1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.metricUnit {
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
+.tileFoot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 0;
+}
+.tiles[data-variant="strip"] {
+  display: flex;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scroll-snap-type: x proximity;
+}
+.tiles[data-variant="strip"] .tile {
+  flex: 0 0 auto;
+  min-width: 132px;
+  scroll-snap-align: start;
+}
+.tiles[data-variant="strip"] .metricNum {
+  font-size: 15px;
+}
+
+.options {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.options li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+.option {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12.5px;
+}
+.ghost[data-variant="read-only"] {
+  border-style: solid;
+  border-color: var(--line);
+  background: var(--surface-2);
+}
+
+/* Bounded surface: it fills its frame and scrolls as a whole only for what the room adds below
+   the workspace (a proposal, a warning, the log). The workspace itself is one composed grid whose
+   cells share the frame: equal gutters, rows stretched to equal height, each panel scrolling
+   inside its own box. The geometry is planGeometry.ts. */
+.surface[data-bounded] {
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  gap: 16px;
+}
+.surface[data-bounded] > .bar {
+  display: none;
+}
+.cell {
+  min-width: 0;
+}
+@container a2ui (min-width: 721px) {
+  .surface[data-bounded] > .column {
+    display: contents;
+  }
+  .surface[data-bounded] > .column > * {
+    flex: none;
+  }
+  .surface[data-bounded] > .column > .cell:first-child {
+    flex: 0 0 100%;
+  }
+  .surface[data-bounded] .cell {
+    display: flex;
+    flex: var(--w, 1) 1 0;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .surface[data-bounded] .cell > *,
+  .surface[data-bounded] .cell > [data-reveal] > * {
+    flex: 1 1 0;
+    min-height: 0;
+    min-width: 0;
+  }
+  .surface[data-bounded] .cell > [data-reveal] {
+    display: flex;
+    flex-direction: column;
+  }
+  .surface[data-bounded] .cell[data-leaf] > :not([data-reveal]),
+  .surface[data-bounded] .cell[data-leaf] > [data-reveal] > * {
+    overflow: auto;
+  }
+  .surface[data-bounded] .cell > .column,
+  .surface[data-bounded] .cell > [data-reveal] > .column {
+    gap: 16px;
+  }
+  .surface[data-bounded] .row {
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 16px;
+  }
+  .surface[data-bounded] .row > * {
+    flex: 1 1 0;
+  }
 }

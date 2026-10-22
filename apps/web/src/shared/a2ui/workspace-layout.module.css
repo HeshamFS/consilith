@@ -4,115 +4,293 @@
 .body {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: var(--gap-section);
   min-width: 0;
 }
 .layout[data-kind="split"] > .body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  align-items: start;
-  gap: 24px;
+  /* Both sides of a split share the row's height, so neither panel sticks out. */
+  align-items: stretch;
+  gap: var(--gap-section);
 }
 .layout:where([data-kind="split"])[data-ratio="focus-start"] > .body {
-  grid-template-columns: minmax(0, 1.65fr) minmax(300px, 1fr);
+  grid-template-columns: minmax(0, 1.65fr) minmax(280px, 1fr);
 }
 .layout:where([data-kind="split"])[data-ratio="focus-end"] > .body {
-  grid-template-columns: minmax(300px, 1fr) minmax(0, 1.65fr);
+  grid-template-columns: minmax(280px, 1fr) minmax(0, 1.65fr);
 }
 .layout[data-kind="grid"] > .body {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: var(--gap-section);
+}
+/* The side without the hero (the control desk) keeps its natural height: when the model space is
+   the taller side, the desk ends with its content instead of stretching into an empty box (found
+   live in a crystal room). The hero still grows to meet a taller desk, so the sides end together
+   whenever the desk is the longer one. */
+.layout[data-kind="split"]
+  > .body
+  > :not([data-emphasis="hero"]):not(:has([data-emphasis="hero"])) {
+  align-self: start;
+}
+/* A panel wrapped by the assembly reveal still fills its grid cell, so a row of panels shares one
+   height while each keeps its natural content. */
+.layout:where([data-kind="split"], [data-kind="grid"]) > .body > [data-unit] {
+  display: flex;
+  flex-direction: column;
+}
+.layout:where([data-kind="split"], [data-kind="grid"]) > .body > [data-unit] > * {
+  flex: 1 1 auto;
+}
+/* A stack beside another column fills the column's height: its hero panel (the model space)
+   takes the spare room, or its last panel when it has no hero, so the two sides end together. */
+.layout[data-kind="split"] > .body > .layout,
+.layout[data-kind="split"] > .body > [data-unit] > .layout {
+  display: flex;
+  flex-direction: column;
+}
+.layout[data-kind="split"] > .body > .layout > .body,
+.layout[data-kind="split"] > .body > [data-unit] > .layout > .body {
+  flex: 1 1 auto;
+}
+.layout[data-kind="split"] > .body .layout[data-kind="stack"] > .body > [data-emphasis="hero"],
+.layout[data-kind="split"]
+  > .body
+  .layout[data-kind="stack"]
+  > .body:not(:has(> [data-emphasis="hero"]))
+  > :last-child {
+  flex: 1 1 auto;
+}
+.layout[data-kind="split"] > .body .layout[data-kind="stack"] > .body > [data-emphasis="hero"] {
+  display: flex;
+  flex-direction: column;
+}
+.layout[data-kind="split"]
+  > .body
+  .layout[data-kind="stack"]
+  > .body
+  > [data-emphasis="hero"]
+  > .body {
+  flex: 1 1 auto;
+}
+.layout[data-kind="split"]
+  > .body
+  .layout[data-kind="stack"]
+  > .body
+  > [data-emphasis="hero"]
+  > .body
+  > :only-child {
+  flex: 1 1 auto;
+}
+/* The reveal wrapper around the model space passes that height on to the panel. */
+.layout[data-kind="split"]
+  > .body
+  .layout[data-kind="stack"]
+  > .body
+  > [data-emphasis="hero"]
+  > .body
+  > [data-unit]:only-child {
+  display: flex;
+  flex-direction: column;
+}
+.layout[data-kind="split"]
+  > .body
+  .layout[data-kind="stack"]
+  > .body
+  > [data-emphasis="hero"]
+  > .body
+  > [data-unit]:only-child
+  > * {
+  flex: 1 1 auto;
+}
+.layout[data-kind="section"] > .body {
+  gap: var(--gap-field);
 }
 .layout[data-emphasis="surface"],
 .layout[data-emphasis="hero"] {
-  padding: 24px;
+  padding: var(--pad-panel);
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: var(--r-card);
   background: var(--surface);
   box-shadow: var(--shadow);
 }
-.layout[data-emphasis="hero"] {
-  min-height: 430px;
-  background: radial-gradient(circle at 50% 45%, transparent, var(--surface-2)), var(--surface);
-}
 .layout[data-emphasis="quiet"] {
-  padding: 18px;
+  padding: var(--pad-panel-tight);
   background: var(--surface-2);
-  border-radius: 16px;
+  border-radius: var(--r-md);
 }
+/* A layout title is a section eyebrow: 11 px mono caps with a hairline, then one muted line. */
 .heading {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin: 0 0 18px;
+  display: grid;
+  gap: 2px;
+  margin: 0 0 var(--gap-field);
 }
 .rule {
-  width: 20px;
-  height: 1px;
-  margin-top: 12px;
-  background: var(--ink-3);
+  display: none;
 }
 .heading h2 {
-  font: 500 21px / 1.2 var(--font-display);
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin: 0;
-  letter-spacing: -0.02em;
+  color: var(--ink-2);
+  font: 500 var(--fs-label) / 16px var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.heading h2::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
 }
 .heading p {
-  color: var(--ink-2);
-  font: 12px / 1.6 var(--font-ui);
-  margin: 7px 0 0;
-  max-width: 60ch;
+  color: var(--ink-3);
+  font: var(--fs-small) / 1.45 var(--font-ui);
+  margin: 0;
+  max-width: 64ch;
 }
 .tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  padding: 5px;
-  margin-bottom: 14px;
+  align-items: center;
+  gap: 2px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 3px;
+  margin-bottom: var(--gap-field);
   border: 1px solid var(--line);
   background: var(--surface-2);
-  border-radius: 13px;
+  border-radius: var(--r-pill);
 }
 .tabs button {
-  flex: 1;
   min-width: fit-content;
-  padding: 10px 12px;
+  height: 26px;
+  padding: 0 12px;
   border: 0;
-  border-radius: 9px;
-  font: 500 12px var(--font-ui);
+  border-radius: var(--r-pill);
+  font: 500 var(--fs-small) var(--font-ui);
   color: var(--ink-2);
   background: transparent;
   cursor: pointer;
 }
+.tabs button:hover {
+  color: var(--ink);
+}
 .tabs button[aria-selected="true"] {
   color: var(--ink);
   background: var(--surface);
-  box-shadow: 0 1px 4px rgb(0 0 0 / 8%);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
 }
 .tabs button:focus-visible {
   outline: 2px solid var(--seat-blue);
-  outline-offset: 2px;
+  outline-offset: 1px;
 }
 .layout[data-density="compact"] > .body {
-  gap: 12px;
+  gap: var(--gap-field);
 }
-@media (max-width: 1100px) {
+/* Layouts answer to the width of the surface that holds them (the a2ui container in
+   a2ui.module.css), so a split inside the 460 px chat sheet stacks the way it does on a phone. */
+@container a2ui (max-width: 720px) {
   .layout[data-kind="split"] > .body,
   .layout[data-kind="split"][data-ratio] > .body {
     grid-template-columns: minmax(0, 1fr);
   }
 }
-@media (max-width: 600px) {
+@container a2ui (max-width: 520px) {
   .layout[data-emphasis="hero"],
   .layout[data-emphasis="surface"] {
-    padding: 18px;
-    border-radius: 16px;
+    padding: var(--pad-panel-tight);
   }
-  .layout[data-emphasis="hero"] {
-    min-height: 280px;
+  .layout[data-kind="grid"] > .body {
+    grid-template-columns: minmax(0, 1fr);
   }
-  .body {
+  .tabs button {
+    min-width: 0;
+    padding: 0 9px;
+  }
+}
+/* Where a surface has no container (a unit test, a print view) the viewport decides. */
+@supports not (container-type: inline-size) {
+  @media (max-width: 1100px) {
+    .layout[data-kind="split"] > .body,
+    .layout[data-kind="split"][data-ratio] > .body {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+}
+
+/* Bounded: the surface fills a fixed frame (the assembly frame). A layout divides the frame it is
+   given and every panel scrolls inside its own cell. The sizes here are the ones planGeometry.ts
+   computes, so the assembly boxes land on them: gutter 16 px, eyebrow 28 px, tab strip 42 px.
+   Narrow frames keep the natural flow above and scroll as a whole. */
+@container a2ui (min-width: 721px) {
+  [data-bounded] .layout {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+  }
+  [data-bounded] .layout > .body {
+    flex: 1 1 0;
+    min-height: 0;
     gap: 16px;
   }
+  [data-bounded] .layout[data-kind="split"][data-ratio] > .body {
+    grid-template-columns: var(--tpl);
+    grid-template-rows: minmax(0, 1fr);
+    align-items: stretch;
+  }
+  [data-bounded] .layout[data-kind="grid"] > .body {
+    grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+    grid-auto-rows: minmax(0, 1fr);
+    align-items: stretch;
+  }
+  [data-bounded] .layout[data-emphasis="quiet"] {
+    padding: 12px;
+  }
+  [data-bounded] .layout[data-emphasis="surface"],
+  [data-bounded] .layout[data-emphasis="hero"] {
+    padding: 16px;
+  }
+  [data-bounded] .heading {
+    flex: none;
+    height: 20px;
+    margin: 0 0 8px;
+  }
+  [data-bounded] .heading > div {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+  [data-bounded] .heading h2 {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  [data-bounded] .heading p {
+    flex: 0 1 55%;
+    overflow: hidden;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  [data-bounded] .tabs {
+    flex: none;
+    height: 34px;
+    margin-bottom: 8px;
+  }
+  [data-bounded] .tabpanel {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    min-height: 0;
+  }
+  [data-bounded] .tabpanel[hidden] {
+    display: none;
+  }
+}
+.tabpanel {
+  min-width: 0;
 }

@@ -1,7 +1,7 @@
 import styles from "./Mark.module.css";
 
-const PETAL = "M50 40 C59 31 59 15 50 6 C41 15 41 31 50 40 Z";
-const CORE = "M50 43 L57 50 L50 57 L43 50 Z";
+export const PETAL = "M50 40 C59 31 59 15 50 6 C41 15 41 31 50 40 Z";
+export const CORE = "M50 43 L57 50 L50 57 L43 50 Z";
 
 type Props = {
   size?: number;
