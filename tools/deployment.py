@@ -10,12 +10,41 @@ import re
 import secrets
 import shutil
 import subprocess
+import tempfile
 import tomllib
 from pathlib import Path
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
 PLATFORM_SERVICES = frozenset({"room", "referee", "web", "siwc"})
+HOST_NAME = re.compile(r"^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$")
+ENV_NAME = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
+EGRESS_KEY = "x-consilith-egress"
+
+
+CATALOG_MODE = 0o600
+
+
+def write_private(path: Path, data: str | bytes, mode: int = CATALOG_MODE) -> None:
+    """Replace ``path`` atomically with a file only its owner can read, from its first byte.
+
+    The bytes go to a fresh file beside it (``mkstemp`` creates it owner-only on POSIX), the mode
+    is set again explicitly, and ``replace`` swaps it in, so no reader sees a half-written file
+    and no moment exists with a wider mode. Windows has no POSIX modes; its ACLs apply.
+    """
+    payload = data.encode() if isinstance(data, str) else data
+    descriptor, name = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".next")
+    temporary = Path(name)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            temporary.chmod(mode)
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.replace(path)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
 
 
 def state_dir() -> Path:
@@ -75,6 +104,47 @@ def manifest(path: Path | None = None) -> dict:
     return document
 
 
+def name_list(value: object) -> bool:
+    return isinstance(value, list) and all(isinstance(item, str) and item for item in value)
+
+
+def plugin_binding(plugin: dict, document: dict) -> dict:
+    """What the operator grants one plugin, published in the catalog the runtime loads.
+
+    The room checks the manifest its worker returns against this and refuses a worker that
+    claims more: other MCP servers or tools, or host ports the operator did not list. A
+    surface the deployment manifest does not declare is left out; production refuses that.
+    """
+    servers = {item["id"]: item for item in document["mcpServices"]}
+    granted = []
+    for identifier in plugin.get("mcpServices", []):
+        entry: dict = {"id": identifier}
+        if "tools" in servers[identifier]:
+            entry["tools"] = list(servers[identifier]["tools"])
+        granted.append(entry)
+    binding: dict = {"mcpServers": granted}
+    for field in ("tools", "policyPorts"):
+        if field in plugin:
+            binding[field] = list(plugin[field])
+    return binding
+
+
+MAX_SERVICE_CPUS = 8
+
+
+def service_cpus(entry: dict) -> float:
+    """CPUs for one MCP service: 2 unless its entry asks for more (a compute-heavy solver),
+    never more than ``MAX_SERVICE_CPUS``."""
+    value = entry.get("cpus", 2)
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int | float)
+        or not 0.5 <= value <= MAX_SERVICE_CPUS
+    ):
+        raise ValueError(f"{entry.get('id')}: cpus must be a number from 0.5 to {MAX_SERVICE_CPUS}")
+    return value
+
+
 def validate_manifest(document: dict) -> None:
     if document.get("schemaVersion") != 1:
         raise ValueError("unsupported deployment manifest")
@@ -97,6 +167,31 @@ def validate_manifest(document: dict) -> None:
         claimed.update(associated)
         if not plugin.get("entryPoint"):
             raise ValueError("plugin requires an entryPoint")
+        for field in ("tools", "policyPorts"):
+            if field in plugin and not name_list(plugin[field]):
+                raise ValueError(f"plugin {field} must be a list of names")
+    for server in document["mcpServices"]:
+        if "tools" in server and not name_list(server["tools"]):
+            raise ValueError("MCP service tools must be a list of names")
+        if "egress" in server:
+            egress = server["egress"]
+            hosts = egress.get("hosts") if isinstance(egress, dict) else None
+            if (
+                not isinstance(hosts, list)
+                or not hosts
+                or not all(isinstance(h, str) and HOST_NAME.match(h) for h in hosts)
+            ):
+                raise ValueError("egress needs a non-empty list of host names")
+            if not isinstance(egress.get("reason"), str) or not egress["reason"].strip():
+                raise ValueError("egress needs a reason")
+        if "hostEnv" in server and not (
+            isinstance(server["hostEnv"], list)
+            and all(isinstance(n, str) and ENV_NAME.match(n) for n in server["hostEnv"])
+        ):
+            raise ValueError("hostEnv must be a list of environment variable names")
+    for plugin in document["plugins"]:
+        if "egress" in plugin or "hostEnv" in plugin:
+            raise ValueError("a plugin worker can never have egress or host environment")
     for server in document["mcpServices"]:
         url = urlsplit(server.get("url", ""))
         if url.scheme not in {"http", "https"} or url.hostname != server["id"] or url.username:
@@ -217,6 +312,7 @@ def render(
     core_only: bool = False,
     aliases: dict | None = None,
     output: str = "compose.generated.json",
+    production: bool | None = None,
 ) -> tuple[Path, dict]:
     validate_manifest(document)
     aliases = active_services() if aliases is None else aliases
@@ -259,8 +355,7 @@ def render(
         if logical in plugin_services:
             token = tokens.setdefault(service, secrets.token_urlsafe(48))
             env_file = private / (service + ".env")
-            env_file.write_text(f"CONSILITH_PLUGIN_TOKEN={token}\n")
-            env_file.chmod(0o600)
+            write_private(env_file, f"CONSILITH_PLUGIN_TOKEN={token}\n")
             spec.update(
                 {
                     "command": [
@@ -280,7 +375,13 @@ def render(
                     },
                 }
             )
-            catalog["plugins"].append({"reference": f"tcp://{service}:8840", "token": token})
+            catalog["plugins"].append(
+                {
+                    "reference": f"tcp://{service}:8840",
+                    "token": token,
+                    "binding": plugin_binding(entry, document),
+                }
+            )
         else:
             spec.update(
                 {
@@ -292,10 +393,25 @@ def render(
                         for key, value in entry.get("environment", {}).items()
                     },
                     "mem_limit": entry.get("memory", "3g"),
+                    "cpus": service_cpus(entry),
                 }
             )
             if entry.get("healthcheck"):
                 spec["healthcheck"] = entry["healthcheck"]
+            if entry.get("hostEnv"):
+                # Host variables reach only this service, through an owner-only file the
+                # lifecycle writes at start. Unset ones are left out: the service starts and
+                # refuses its own calls.
+                lines = []
+                for name in entry["hostEnv"]:
+                    value = os.environ.get(name, "")
+                    if "\n" in value or "\r" in value:
+                        raise ValueError(f"host variable {name} holds a line break")
+                    if value:
+                        lines.append(f"{name}={value}\n")
+                env_file = private / (service + ".env")
+                write_private(env_file, "".join(lines))
+                spec["env_file"] = [str(env_file)]
             catalog["solverUrls"][entry["id"]] = (
                 entry["url"]
                 .replace("//" + logical + ":", "//" + service + ":")
@@ -305,10 +421,22 @@ def render(
         network = "capability-" + service
         base.setdefault("networks", {})[network] = {"internal": True}
         spec["networks"] = [network]
+        if logical not in plugin_services and entry.get("egress"):
+            # The one exception to "no route out": a declared MCP service gets a second,
+            # non-internal network of its own. Hosts are enforced by the service's own code.
+            route = "egress-" + service
+            base["networks"][route] = {"driver": "bridge"}
+            spec["networks"].append(route)
+            spec.setdefault("labels", {})["com.consilith.egress"] = ",".join(
+                entry["egress"]["hosts"]
+            )
+            base.setdefault(EGRESS_KEY, {})[service] = {
+                "hosts": list(entry["egress"]["hosts"]),
+                "reason": entry["egress"]["reason"],
+            }
         for platform in ("room", "referee"):
             services[platform].setdefault("networks", ["default"]).append(network)
-    secret_file.write_text(json.dumps(tokens))
-    secret_file.chmod(0o600)
+    write_private(secret_file, json.dumps(tokens))
     for secret in base.get("secrets", {}).values():
         if "file" in secret and not Path(secret["file"]).is_absolute():
             secret["file"] = str(runtime_path(secret["file"]))
@@ -334,15 +462,128 @@ def render(
                 str(private / "catalog") + ":/catalog:ro" if volume == "CATALOG" else volume
                 for volume in spec["volumes"]
             ]
+    if production is None:
+        production = os.environ.get("CONSILITH_ENV") == "production"
+    check_topology(base, catalog, production=production)
     path = private / output
     path.write_text(json.dumps(base, indent=2) + "\n")
     return path, catalog
 
 
 def publish_catalog(catalog: dict) -> None:
+    """Publish the catalog the room and referee read. It holds the plugin tokens: mode 600,
+    swapped in atomically."""
     directory = state_dir() / "catalog"
-    directory.mkdir(exist_ok=True)
-    temporary = directory / "plugins.next.json"
+    directory.mkdir(parents=True, exist_ok=True)
     published = {**catalog, "generation": secrets.token_hex(16)}
-    temporary.write_text(json.dumps(published, indent=2) + "\n")
-    temporary.replace(directory / "plugins.json")
+    write_private(directory / "plugins.json", json.dumps(published, indent=2) + "\n")
+
+
+def is_plugin_worker(name: str, spec: dict) -> bool:
+    """Conservative: anything named or run like a plugin worker, staged aliases included."""
+    command = " ".join(str(part) for part in spec.get("command") or [])
+    return name.startswith("plugin-") or "-plugin-" in name or "consilith_plugin_runtime" in command
+
+
+def _names(value: object) -> list[str]:
+    if isinstance(value, dict):
+        return [str(key) for key in value]
+    return [str(item) for item in value] if isinstance(value, list) else []
+
+
+def topology_problems(
+    rendered: dict, catalog: dict | None = None, *, production: bool = False
+) -> list[str]:
+    """Every way a rendered deployment lets plugin code reach beyond its capability network.
+
+    A plugin worker or MCP service sits alone on its own ``capability-<service>`` network, which
+    must be ``internal`` (Docker gives it no route out) and shared only with the room and the
+    referee. The web gateway and the ChatGPT bridge never join one. Production also refuses
+    plugins that run as subprocesses of the room, and catalog plugins without a full binding.
+    """
+    problems: list[str] = []
+    services: dict = rendered.get("services", {})
+    networks: dict = rendered.get("networks", {})
+    declared = rendered.get(EGRESS_KEY, {})
+    declared = declared if isinstance(declared, dict) else {}
+    for name, spec in services.items():
+        attached = _names(spec.get("networks", ["default"]))
+        capability = [n for n in attached if n.startswith("capability-")]
+        routes = [n for n in attached if n.startswith("egress-")]
+        if name in PLATFORM_SERVICES:
+            if name in {"web", "siwc"} and (capability or routes):
+                problems.append(f"{name} must not join a plugin capability or egress network")
+            continue
+        own = [n for n in attached if not n.startswith("egress-")]
+        if own != ["capability-" + name]:
+            problems.append(f"{name} must sit on its own capability network only, not {attached}")
+        if routes:
+            grant = declared.get(name)
+            if routes != ["egress-" + name]:
+                problems.append(f"{name} may join only its own egress network, not {routes}")
+            elif not isinstance(grant, dict) or not grant.get("hosts"):
+                problems.append(f"{name} joins an egress network without a declared host list")
+            elif is_plugin_worker(name, spec):
+                problems.append(f"{name} is a plugin worker and can never have egress")
+        if spec.get("network_mode"):
+            problems.append(f"{name} must not set network_mode")
+        if spec.get("ports"):
+            problems.append(f"{name} must not publish ports")
+    for name, definition in networks.items():
+        if not name.startswith("capability-"):
+            continue
+        if not isinstance(definition, dict) or definition.get("internal") is not True:
+            problems.append(f"network {name} must be internal, with no egress")
+        elif definition.get("external") or definition.get("driver") in {"host", "macvlan"}:
+            problems.append(f"network {name} must be a private bridge")
+    for name, definition in networks.items():
+        if not name.startswith("egress-"):
+            continue
+        members = [s for s, spec in services.items() if name in _names(spec.get("networks", []))]
+        if not isinstance(definition, dict) or definition.get("internal") is True:
+            problems.append(f"network {name} is an egress network and must not be internal")
+        if isinstance(definition, dict) and (
+            definition.get("external") or definition.get("driver") in {"host", "macvlan"}
+        ):
+            problems.append(f"network {name} must be a private bridge")
+        if members != [name.removeprefix("egress-")]:
+            problems.append(f"network {name} must serve only the service it is named for")
+    used = {n for spec in services.values() for n in _names(spec.get("networks", []))}
+    for name in sorted(n for n in used if n.startswith("capability-") and n not in networks):
+        problems.append(f"network {name} is used but not defined as internal")
+    for name in sorted(n for n in used if n.startswith("egress-") and n not in networks):
+        problems.append(f"network {name} is used but not defined")
+    if production:
+        for name in ("room", "referee"):
+            env = services.get(name, {}).get("environment", {})
+            try:
+                modules = json.loads(env.get("CONSILITH_EXTENSION_MODULES", "[]") or "[]")
+            except ValueError:
+                modules = ["unreadable"]
+            if modules:
+                problems.append(f"{name} loads dev-subprocess plugins, which production refuses")
+        for plugin in (catalog or {}).get("plugins", []):
+            if not str(plugin.get("reference", "")).startswith("tcp://"):
+                problems.append("a catalog plugin is not a network service")
+            binding = plugin.get("binding")
+            if not isinstance(binding, dict):
+                problems.append("a catalog plugin has no binding")
+                continue
+            for field in ("mcpServers", "tools", "policyPorts"):
+                if not isinstance(binding.get(field), list):
+                    problems.append(f"a catalog plugin does not bind {field}")
+            if any(
+                not isinstance(server, dict) or "tools" not in server
+                for server in binding.get("mcpServers", [])
+            ):
+                problems.append("a catalog plugin does not bind the tools of an MCP server")
+    return problems
+
+
+def check_topology(
+    rendered: dict, catalog: dict | None = None, *, production: bool = False
+) -> None:
+    """Raise ``ValueError`` listing every topology problem; the security gate calls this."""
+    problems = topology_problems(rendered, catalog, production=production)
+    if problems:
+        raise ValueError("deployment topology refused: " + "; ".join(problems))

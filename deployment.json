@@ -18,48 +18,235 @@
   },
   "plugins": [
     {
-      "id": "starter",
-      "image": "consilith-agentic-starter:local",
-      "entryPoint": "consilith_agentic_starter:extension",
+      "id": "microstructure",
+      "image": "consilith-microstructure-worker:local",
+      "entryPoint": "consilith_microstructure.adapter:extension",
       "build": {
         "packages": [
           "packages/contracts",
           "packages/plugin-runtime",
-          "examples/agentic-plugin-template"
+          "plugins/microstructure"
         ],
         "requirements": [
           "consilith-plugin-runtime",
-          "consilith-agentic-starter"
+          "consilith-microstructure[platform,report,adaption]"
         ]
       },
       "mcpServices": [
-        "solver-starter"
+        "solver-microstructure",
+        "solver-adaption"
+      ],
+      "tools": [
+        "microstructure.prepare_showcase",
+        "microstructure.evolve_showcase",
+        "microstructure.report",
+        "microstructure.dataset",
+        "adaption.estimate",
+        "adaption.adapt"
+      ],
+      "policyPorts": [
+        "snapshot",
+        "artifact",
+        "current_results",
+        "result",
+        "run_tool",
+        "review"
+      ]
+    },
+    {
+      "id": "crystal",
+      "image": "consilith-crystal-worker:local",
+      "entryPoint": "consilith_crystallography.adapter:extension",
+      "build": {
+        "packages": [
+          "packages/contracts",
+          "packages/plugin-runtime",
+          "plugins/crystallography"
+        ],
+        "requirements": [
+          "consilith-plugin-runtime",
+          "consilith-crystallography[platform]"
+        ]
+      },
+      "mcpServices": [
+        "solver-crystal"
       ]
     }
   ],
   "mcpServices": [
     {
-      "id": "solver-starter",
-      "image": "consilith-agentic-starter-mcp:local",
-      "url": "http://solver-starter:8080/mcp",
+      "id": "solver-microstructure",
+      "image": "consilith-microstructure-mcp:local",
+      "url": "http://solver-microstructure:8080/mcp",
       "command": [
         "python",
         "/app/container.py",
         "solver"
       ],
       "environment": {
-        "CONSILITH_SOLVER_MODULE": "consilith_agentic_starter.server",
-        "CONSILITH_MCP_ALLOWED_HOSTS": "[\"solver-starter:8080\", \"localhost:*\", \"127.0.0.1:*\"]"
+        "CONSILITH_SOLVER_MODULE": "consilith_microstructure.platform_server",
+        "NUMBA_CACHE_DIR": "/tmp/numba",
+        "NUMBA_NUM_THREADS": "4",
+        "CONSILITH_MCP_ALLOWED_HOSTS": "[\"solver-microstructure:8080\", \"localhost:*\", \"127.0.0.1:*\"]"
       },
       "build": {
         "packages": [
           "packages/contracts",
-          "examples/agentic-plugin-template"
+          "plugins/microstructure"
         ],
         "requirements": [
-          "consilith-agentic-starter"
+          "consilith-microstructure[platform,report]"
         ]
+      },
+      "tools": [
+        "microstructure.prepare_showcase",
+        "microstructure.evolve_showcase",
+        "microstructure.report",
+        "microstructure.dataset"
+      ],
+      "memory": "4g",
+      "cpus": 4
+    },
+    {
+      "id": "solver-adaption",
+      "image": "consilith-microstructure-adaption:local",
+      "url": "http://solver-adaption:8080/mcp",
+      "command": [
+        "python",
+        "/app/container.py",
+        "solver"
+      ],
+      "environment": {
+        "CONSILITH_SOLVER_MODULE": "consilith_microstructure.adaption_server",
+        "CONSILITH_MCP_ALLOWED_HOSTS": "[\"solver-adaption:8080\", \"localhost:*\", \"127.0.0.1:*\"]",
+        "ADAPTION_MAX_CREDITS": "50",
+        "ADAPTION_TIMEOUT_S": "900",
+        "ADAPTION_WAIT_S": "30"
+      },
+      "build": {
+        "packages": [
+          "packages/contracts",
+          "plugins/microstructure"
+        ],
+        "requirements": [
+          "consilith-microstructure[adaption]"
+        ]
+      },
+      "tools": [
+        "adaption.estimate",
+        "adaption.adapt"
+      ],
+      "memory": "1g",
+      "hostEnv": [
+        "ADAPTION_API_KEY"
+      ],
+      "egress": {
+        "hosts": [
+          "api.prod.adaptionlabs.ai"
+        ],
+        "reason": "Adaption Labs API for the training-set estimate and the confirmed adapt; the key is read only inside this service and the client allow-lists the host in code"
       }
+    },
+    {
+      "id": "solver-crystal",
+      "image": "consilith-crystal-mcp:local",
+      "url": "http://solver-crystal:8080/mcp",
+      "command": [
+        "python",
+        "/app/container.py",
+        "solver"
+      ],
+      "environment": {
+        "CONSILITH_SOLVER_MODULE": "consilith_crystallography.platform_server",
+        "CONSILITH_MCP_ALLOWED_HOSTS": "[\"solver-crystal:8080\", \"localhost:*\", \"127.0.0.1:*\"]",
+        "MPLCONFIGDIR": "/tmp/matplotlib",
+        "OPENBLAS_NUM_THREADS": "2",
+        "OMP_NUM_THREADS": "2"
+      },
+      "build": {
+        "packages": [
+          "packages/contracts",
+          "plugins/crystallography"
+        ],
+        "requirements": [
+          "consilith-crystallography[platform]"
+        ]
+      },
+      "memory": "4g"
+    }
+  ],
+  "models": [
+    {
+      "provider": "anthropic",
+      "model": "claude-sonnet-5-5",
+      "context": 200000,
+      "max_output": 16384,
+      "reasoning_headroom": 0,
+      "verified": false
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-opus-5-5",
+      "context": 200000,
+      "max_output": 16384,
+      "reasoning_headroom": 0,
+      "verified": false
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5",
+      "context": 200000,
+      "max_output": 16384,
+      "reasoning_headroom": 0,
+      "verified": false
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-6.1-sol",
+      "context": 400000,
+      "max_output": 16384,
+      "reasoning_headroom": 0,
+      "verified": false
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-6-luna",
+      "context": 400000,
+      "max_output": 16384,
+      "reasoning_headroom": 0,
+      "verified": false
+    },
+    {
+      "provider": "gemini",
+      "model": "gemini-3.8-flash",
+      "context": 1000000,
+      "max_output": 16384,
+      "reasoning_headroom": 0,
+      "verified": false
+    },
+    {
+      "provider": "gemini",
+      "model": "gemini-3.1-pro-preview",
+      "context": 1000000,
+      "max_output": 16384,
+      "reasoning_headroom": 0,
+      "verified": false
+    },
+    {
+      "provider": "siwc",
+      "model": "gpt-6.1-sol",
+      "context": 400000,
+      "max_output": 16384,
+      "reasoning_headroom": 0,
+      "verified": false
+    },
+    {
+      "provider": "siwc",
+      "model": "gpt-6-luna",
+      "context": 400000,
+      "max_output": 16384,
+      "reasoning_headroom": 0,
+      "verified": false
     }
   ]
 }

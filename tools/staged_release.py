@@ -30,12 +30,23 @@ def validator_diagnostic(stderr: str | bytes | None, candidate: dict) -> str:
 
 
 def validate_tool_inventory(descriptors: list, inventories: dict) -> None:
+    # Imported here because this function's source is also run inside the validator process.
+    from consilith_contracts.manifest_meta import (
+        ManifestMetaError,
+        check_manifest_meta,
+        server_tool_names,
+    )
+
     known = {tool for tools in inventories.values() for tool in tools}
     for plugin in descriptors:
+        try:
+            check_manifest_meta(plugin)
+        except ManifestMetaError as exc:
+            raise ValueError(f"plugin manifest is not coherent: {exc}") from exc
         if not set(plugin.get("tools", [])) <= known:
             raise ValueError("plugin declares tools missing from MCP discovery")
         for server in plugin.get("mcpServers", []):
-            if server["id"] not in inventories or not set(server.get("tools", [])) <= set(
+            if server["id"] not in inventories or not set(server_tool_names(server)) <= set(
                 inventories[server["id"]]
             ):
                 raise ValueError("plugin MCP server/tool declaration does not match discovery")
