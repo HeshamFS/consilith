@@ -15,6 +15,7 @@ import logging
 import os
 import threading
 import time
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any, cast
 
@@ -86,6 +87,25 @@ from .checks import stamp_for
 
 log = logging.getLogger("consilith.referee")
 VERSION = "0.1.0"
+DEFAULT_CHECK_TIMEOUT_S = 60.0
+DEFAULT_CHECK_CEILING_S = 3600.0
+# The checker's solver calls for one review. The room signs the declared deadline into the run
+# manifest (``context.deadlineS``); the referee honours it under its own operator ceiling.
+_call_timeout_s: ContextVar[float | None] = ContextVar("referee_call_timeout_s", default=None)
+
+
+def review_timeout_s(
+    manifest_context: dict[str, Any],
+    base_s: float = DEFAULT_CHECK_TIMEOUT_S,
+    ceiling_s: float = DEFAULT_CHECK_CEILING_S,
+) -> float:
+    """The per-call timeout for one review: the base, raised to a valid declared deadline, never
+    above ``ceiling_s``. A missing, non-numeric or non-positive declaration leaves the base."""
+    declared = manifest_context.get("deadlineS")
+    wanted = base_s
+    if isinstance(declared, int | float) and not isinstance(declared, bool) and declared > 0:
+        wanted = max(base_s, float(declared))
+    return min(wanted, max(ceiling_s, base_s))
 
 
 def load_or_create_key(path: Path) -> Ed25519PrivateKey:
@@ -105,9 +125,15 @@ def load_or_create_key(path: Path) -> Ed25519PrivateKey:
 class SolverCaller:
     """The referee's own MCP client. It accepts only valid result envelopes."""
 
-    def __init__(self, servers: dict[str, str], timeout_s: float = 60.0) -> None:
+    def __init__(
+        self,
+        servers: dict[str, str],
+        timeout_s: float = DEFAULT_CHECK_TIMEOUT_S,
+        ceiling_s: float = DEFAULT_CHECK_CEILING_S,
+    ) -> None:
         self.servers = servers
         self.timeout_s = timeout_s
+        self.ceiling_s = ceiling_s
         self._tools: dict[str, str] = {}
         self._versions: dict[str, str | None] = {}
 
@@ -137,7 +163,8 @@ class SolverCaller:
             raise ValueError(f"checker tool unavailable: {tool}")
         server = self._tools[tool]
         url = self.servers[server]
-        async with asyncio.timeout(self.timeout_s), Client(url) as client:
+        timeout_s = _call_timeout_s.get() or self.timeout_s
+        async with asyncio.timeout(timeout_s), Client(url) as client:
             current = client.server_info.version if client.server_info else None
             expected = self._versions.get(server)
             if expected is not None and current != expected:
@@ -280,6 +307,13 @@ class Referee:
                     findings, method = await check_case(req, item, self.call)
             return findings, method
 
+        _call_timeout_s.set(
+            review_timeout_s(
+                req.manifest.context,
+                getattr(self.call, "timeout_s", DEFAULT_CHECK_TIMEOUT_S),
+                getattr(self.call, "ceiling_s", DEFAULT_CHECK_CEILING_S),
+            )
+        )
         checked = await asyncio.gather(
             *(inspect_item(item) for item in req.items),
             return_exceptions=True,
@@ -427,15 +461,18 @@ def card(public_url: str) -> AgentCard:
 
 
 def create_app(
-    key: Ed25519PrivateKey, public_url: str, servers: dict[str, str] | None = None, *, token: str
+    key: Ed25519PrivateKey,
+    public_url: str,
+    servers: dict[str, str] | None = None,
+    *,
+    token: str,
+    check_ceiling_s: float = DEFAULT_CHECK_CEILING_S,
 ) -> FastAPI:
     agent_card = card(public_url)
+    caller = SolverCaller(dict(servers) if servers is not None else {})
+    caller.ceiling_s = check_ceiling_s
     handler = DefaultRequestHandler(
-        agent_executor=RefereeExecutor(
-            Referee(
-                key, SolverCaller(servers if servers is not None else all_extensions("servers"))
-            )
-        ),
+        agent_executor=RefereeExecutor(Referee(key, caller)),
         task_store=InMemoryTaskStore(owner_resolver=caller_scope),
         agent_card=agent_card,
     )
@@ -467,6 +504,8 @@ def main() -> None:
 
     load_extensions(json.loads(os.environ.get("CONSILITH_EXTENSION_MODULES", "[]")))
     port = int(os.environ.get("CONSILITH_REFEREE_PORT", "8720"))
+    # Server URLs are operator configuration only; a plugin's own ``servers`` never adds one.
+    servers = json.loads(os.environ.get("CONSILITH_SOLVER_SERVERS", "{}"))
     token = os.environ.get("CONSILITH_REFEREE_TOKEN", "")
     if len(token) < 16:
         raise SystemExit(
@@ -476,5 +515,15 @@ def main() -> None:
         Path(os.environ.get("CONSILITH_REFEREE_KEY", "var/referee/ed25519.pem"))
     )
     uvicorn.run(
-        create_app(key, f"http://127.0.0.1:{port}", token=token), host="127.0.0.1", port=port
+        create_app(
+            key,
+            f"http://127.0.0.1:{port}",
+            servers=servers,
+            token=token,
+            check_ceiling_s=float(
+                os.environ.get("CONSILITH_REFEREE_CEILING_S", DEFAULT_CHECK_CEILING_S)
+            ),
+        ),
+        host="127.0.0.1",
+        port=port,
     )

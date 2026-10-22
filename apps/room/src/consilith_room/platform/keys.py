@@ -2,8 +2,11 @@
 
 A key is put by a signed-in session and belongs to that session alone. It expires with the
 session, is dropped at sign-out and is gone when the server restarts. A run started from a
-session uses that session's key; background work (no session started it) uses the newest live
-session's key, and with none the agent has no model and says so.
+person's own session uses that session's key first; every other run (background work, a peer
+turn, an event turn, or another person's agent resolved inside this session) uses the newest live
+session of the agent's owner that holds one. A session is never asked for a key on behalf of a
+different person, so resolving person B inside person A's session leaves A's keys alone. With no
+key the agent has no model and says so.
 
 Nothing here is written to the store, the journal, a log line or an error message.
 """
@@ -70,7 +73,12 @@ class SessionKeys:
         return self.for_session(person, sid, provider) is not None
 
     def for_session(self, person: str, sid: str, provider: str) -> str | None:
-        """The key this session put, while the session is live."""
+        """The key this session put, while the session is live. A session that holds keys for
+        someone else is not touched: it answers None and keeps its keys."""
+        with self._lock:
+            holder = self._owner.get(sid)
+        if holder is not None and holder != person:
+            return None
         if not self._store.session_live(sid, person):
             self.drop_session(sid)  # expired or revoked: the key goes with it
             return None
@@ -86,11 +94,31 @@ class SessionKeys:
                 return key
         return None
 
+    def has_live_session(self, person: str) -> bool:
+        """Whether this person is signed in somewhere right now."""
+        return bool(self._store.live_sessions(person))
+
+    def ready(self, person: str, provider: str) -> bool:
+        """The one readiness rule for a key provider: some live session of this person holds a
+        key for it. Chat, the composer and peer turns all ask this."""
+        return self.for_background(person, provider) is not None
+
     def for_run(self, person: str, provider: str) -> str | None:
-        """The key a run uses: its own session's, or for background work the newest live one."""
+        """The key a run uses for ``person``'s agent.
+
+        The run's own session is used first, but only when it is this person's. Anything else
+        (background work, or a run started from another person's session) uses the newest live
+        session of ``person`` that holds a key. ``for_session`` is never called with another
+        person's session, so a cross-person turn cannot drop the caller's keys.
+        """
         sid = current_session()
         if sid is not None:
-            return self.for_session(person, sid, provider)
+            with self._lock:
+                holder = self._owner.get(sid)
+            if holder == person:
+                own = self.for_session(person, sid, provider)
+                if own is not None:
+                    return own
         return self.for_background(person, provider)
 
     def __repr__(self) -> str:

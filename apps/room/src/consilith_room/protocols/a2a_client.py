@@ -117,7 +117,18 @@ class A2ACaller:
         task_id: str | None = None,
         context_id: str | None = None,
         card: AgentCard | None = None,
+        viewer: str | None = None,
+        message_id: str | None = None,
+        journal_payload: bool = True,
+        journal_summary: dict[str, Any] | None = None,
     ) -> A2AReply:
+        """``viewer`` marks both journal entries as that person's own: the shared journal view
+        hides them from everyone else (set it when the text is a person's private chat).
+
+        ``journal_payload=False`` is for peer traffic: the journal records ``journal_summary``
+        (ids and counters, for example ``{msgId, kind, hop}``) and the task state, never the
+        text, the data or the reply texts. ``message_id`` fixes the A2A message id, so a retry of
+        the same logical message is recognised by the receiver."""
         parts: list[Part] = []
         if text:
             parts.append(Part(text=text))
@@ -125,7 +136,7 @@ class A2ACaller:
             parts.append(new_data_part(data, media_type=media_type))
         msg = Message(
             role=Role.ROLE_USER,
-            message_id=str(uuid.uuid4()),
+            message_id=message_id or str(uuid.uuid4()),
             parts=parts,
             context_id=context_id or "",
             task_id=task_id or "",
@@ -137,7 +148,10 @@ class A2ACaller:
             "SendMessage",
             sender,
             receiver,
-            {"text": text, "data": data, "mediaType": media_type, "taskId": task_id},
+            {"text": text, "data": data, "mediaType": media_type, "taskId": task_id}
+            if journal_payload
+            else dict(journal_summary or {}),
+            viewer=viewer,
             correlation_id=corr,
         )
         reply = A2AReply()
@@ -166,7 +180,10 @@ class A2ACaller:
                 "texts": reply.texts,
                 "data": reply.data,
                 "artifacts": reply.artifacts,
-            },
+            }
+            if journal_payload
+            else {**(journal_summary or {}), "state": reply.state},
+            viewer=viewer,
             correlation_id=corr,
         )
         return reply

@@ -5,7 +5,9 @@ Nobody is seeded: people are real accounts (``domain/accounts.py``).
 
 from __future__ import annotations
 
-from consilith_contracts import AgentConfig, Autonomy
+from consilith_contracts import AgentConfig, Autonomy, at_least
+
+from . import prefs as seat_defaults
 
 Role = str
 
@@ -25,5 +27,17 @@ def default_config(role: Role) -> AgentConfig:
 
     value = optional_extension("roles", role)
     if value is None:
-        return AgentConfig(autonomy=Autonomy.SUGGEST)
+        return AgentConfig(autonomy=seat_defaults.NEW_SEAT_AUTONOMY)
     return AgentConfig.model_validate(value() if callable(value) else value).model_copy(deep=True)
+
+
+def autonomy_for_existing_seat(current: Autonomy, chosen: Autonomy) -> Autonomy | None:
+    """What a person's change under Your agent does to a seat they already have (decision 1).
+
+    Lowering reaches every seat at once, so a person's observe or suggest choice always works as
+    a kill switch. Raising applies to new seats and rooms only: the seat keeps what it has.
+    Returns the autonomy to set on the seat, or None to leave it alone.
+    """
+    if chosen == current:
+        return None
+    return chosen if not at_least(chosen, current) else None

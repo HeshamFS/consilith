@@ -37,6 +37,23 @@ def plugins_router(hub: Hub, person: Callable[..., str]) -> APIRouter:
             raise NotFound("plugin is not installed") from exc
         return room.snapshot()
 
+    @router.get("/rooms/{room_id}/plugins/updates")
+    def updates(room_id: str, p: Annotated[str, Depends(person)]) -> dict[str, Any]:
+        """Whether the room's pinned releases differ from the installed ones (version or
+        package digest), and the room owner, so the page offers the update to the owner only."""
+        hub.refresh_plugins()
+        room = hub.room(room_id)
+        return {"changed": room.plugin_updates(p), "owner": hub.store.room_owner(room_id)}
+
+    @router.post("/rooms/{room_id}/plugins/migrate")
+    def migrate(room_id: str, p: Annotated[str, Depends(person)]) -> dict[str, Any]:
+        """Only the room owner moves a room to newly installed plugin releases."""
+        hub.refresh_plugins()
+        if hub.store.room_owner(room_id) != p:
+            raise Denied("only the room owner updates the room's plugins", code="not_room_owner")
+        room = hub.room(room_id)
+        return {"changed": room.migrate_plugins(p), "room": room.snapshot()}
+
     @router.get("/rooms/{room_id}/knowledge/{knowledge_id}")
     def knowledge(
         room_id: str, knowledge_id: str, p: Annotated[str, Depends(person)]

@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any, Literal, cast
 
 from ..platform.bus import RoomBus
@@ -39,6 +39,8 @@ BEARER = re.compile(r"(?i)\b(bearer\s+)[A-Za-z0-9._~+/=-]+")
 KEY_VALUE = re.compile(
     r"(?i)\b(token|api[_-]?key|apikey|secret|password|authorization)(\s*[=:]\s*)[^\s,;&\"']+"
 )
+# An OAuth callback URL carries its one-time code and state as query parameters.
+OAUTH_PARAM = re.compile(r"(?i)([?&](?:code|state)=)[^&\s#\"']+")
 
 
 def _redact_text(text: str) -> str:
@@ -50,6 +52,7 @@ def _redact_text(text: str) -> str:
         except ValueError:
             pass
     text = BEARER.sub(r"\1[redacted]", text)
+    text = OAUTH_PARAM.sub(r"\1[redacted]", text)
     return KEY_VALUE.sub(r"\1\2[redacted]", text)
 
 
@@ -100,4 +103,15 @@ class Journal:
         return seq
 
     def entries(self, room: str, after: int = 0) -> list[dict[str, Any]]:
-        return self.store.journal(room, after)
+        """Every entry after ``after``, read in pages so a long journal is never cut short."""
+        return list(self.iter_entries(room, after))
+
+    def iter_entries(self, room: str, after: int = 0) -> Iterator[dict[str, Any]]:
+        return self.store.journal_iter(room, after)
+
+    def page(self, room: str, after: int = 0, limit: int = 5000) -> list[dict[str, Any]]:
+        return self.store.journal_page(room, after, limit)
+
+    def by_correlation(self, room: str, correlation_id: str) -> list[dict[str, Any]]:
+        """The entries of one call, through the correlation index and not a scan."""
+        return self.store.journal_by_correlation(room, correlation_id)

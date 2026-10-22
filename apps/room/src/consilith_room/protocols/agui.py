@@ -60,11 +60,31 @@ KIND_PROTOCOL = {
     "ledger.entry": "A2A",
     "tension.open": "A2UI",
     "memory.lesson": "A2A",
+    # Agent-to-agent threads (section 7). Log rows hold ids only, never a message body.
+    "peer.message": "A2A",
+    "peer.thread": "A2A",
+    "peer.thread.closed": "A2A",
+    "peer.cause": "A2A",
+    "peer.prefs": "AG-UI",
 }
 
 
+REPLAY_CHUNK_CHARS = 48
+
+
+def rechunk(text: str, size: int = REPLAY_CHUNK_CHARS) -> list[str]:
+    """The deterministic chunker for replay: the same text always gives the same chunks, so a
+    coalesced assistant message replays as the same content in the same order."""
+    return [text[i : i + size] for i in range(0, len(text), size)] or [""]
+
+
 class Emitter:
-    """Encodes events and journals every one, so a viewer's stream can be replayed exactly."""
+    """Encodes events and journals every one, so a viewer's stream can be replayed exactly.
+
+    Streamed assistant text is coalesced in the journal: ``TEXT_MESSAGE_START``, one ``CONTENT``
+    with the whole text, then ``END``. The client still receives every chunk as it arrives. A run
+    that ends before a message closes has its open messages flushed and closed in the journal.
+    """
 
     def __init__(
         self,
@@ -82,12 +102,9 @@ class Emitter:
         self.session = session
         self.replay = replay
         self.run_id = run_id
+        self._open: dict[str, list[str]] = {}  # assistant messages whose text is still arriving
 
-    def __call__(self, event: BaseEvent) -> str:
-        data = event.model_dump(mode="json", by_alias=True, exclude_none=True)
-        if self.replay:
-            data.setdefault("metadata", {})["replay"] = True
-            event = type(event).model_validate(data)
+    def _record(self, data: dict[str, Any]) -> None:
         self.journal.record(
             self.room,
             "AG-UI",
@@ -99,6 +116,38 @@ class Emitter:
             refs={"session": self.session, **({"runId": self.run_id} if self.run_id else {})},
             replay=self.replay,
         )
+
+    def _flush(self, mid: str, *, close: bool) -> None:
+        parts = self._open.pop(mid, None)
+        if parts is None:
+            return
+        text = "".join(parts)
+        if text:
+            self._record({"type": "TEXT_MESSAGE_CONTENT", "messageId": mid, "delta": text})
+        if close:
+            self._record({"type": "TEXT_MESSAGE_END", "messageId": mid})
+
+    def _journal(self, data: dict[str, Any]) -> None:
+        kind = data.get("type")
+        mid = str(data.get("messageId", ""))
+        if kind == "TEXT_MESSAGE_START" and data.get("role", "assistant") == "assistant":
+            self._open[mid] = []
+        elif kind == "TEXT_MESSAGE_CONTENT" and mid in self._open:
+            self._open[mid].append(str(data.get("delta", "")))
+            return  # journaled once, at the end of the message
+        elif kind == "TEXT_MESSAGE_END" and mid in self._open:
+            self._flush(mid, close=False)
+        elif kind in ("RUN_FINISHED", "RUN_ERROR"):
+            for open_mid in list(self._open):
+                self._flush(open_mid, close=True)
+        self._record(data)
+
+    def __call__(self, event: BaseEvent) -> str:
+        data = event.model_dump(mode="json", by_alias=True, exclude_none=True)
+        if self.replay:
+            data.setdefault("metadata", {})["replay"] = True
+            event = type(event).model_validate(data)
+        self._journal(data)
         return self.encoder.encode(event)
 
 
@@ -158,6 +207,11 @@ def journal_events(entry: dict[str, Any], viewer: str) -> list[BaseEvent]:
     if proto == "A2UI":
         if entry.get("viewer") != viewer:
             return []
+        if not payload.get("messages"):
+            # A record about a surface (an ad-hoc validation: digest and count) carries no
+            # messages. Sent as a snapshot it would replace the surface the agent session drew
+            # under the same message id with an empty one.
+            return [wiring]
         surface = entry.get("refs", {}).get("surfaceId", "surface")
         return [
             ActivitySnapshotEvent(
@@ -238,7 +292,11 @@ async def feed_stream(
         for entry in journal.entries(room.id):
             if entry["seq"] > jseq:
                 break
-            if entry["protocol"] == "A2UI" and entry.get("viewer") == viewer:
+            if (
+                entry["protocol"] == "A2UI"
+                and entry.get("viewer") == viewer
+                and entry.get("payload", {}).get("messages")
+            ):
                 latest[entry.get("refs", {}).get("surfaceId", "surface")] = entry
         for entry in latest.values():
             for ev in journal_events(entry, viewer):

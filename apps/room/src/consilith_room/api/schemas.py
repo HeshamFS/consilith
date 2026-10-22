@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from consilith_contracts import KeyedProviderId
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 
@@ -34,7 +35,7 @@ class KeyIn(Body):
 
     model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
 
-    provider: Literal["anthropic", "openai", "gemini"]
+    provider: KeyedProviderId  # a registry provider whose auth is ``key``
     key: SecretStr = Field(min_length=8, max_length=512)
 
 
