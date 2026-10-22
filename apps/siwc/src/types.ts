@@ -3,6 +3,9 @@
 // is testable without the DevKit installed. They mirror the DevKit's public API.
 
 export interface SessionIdentity {
+  /** A stable account id, if the DevKit offers one. The bridge treats it as optional and
+   * falls back to the email (see docs/agent-loop/siwc-probe.md). */
+  id?: string;
   name?: string;
   email?: string;
 }
@@ -18,6 +21,7 @@ export interface SessionState {
   status: "disconnected" | "connecting" | "connected" | "reauth_required";
   /** True only when connected, credentials exist, and plan usage (token sharing) was granted. */
   sharing: boolean;
+  profileId?: string;
   identity?: SessionIdentity;
   error?: SessionError;
 }
@@ -30,6 +34,8 @@ export interface ChatGPTModel {
 export interface SignInOptions {
   signal?: AbortSignal;
   reconsent?: boolean;
+  /** Register another ChatGPT account in this directory instead of reauthorizing the saved one. */
+  newProfile?: boolean;
 }
 
 export interface StreamResponseOptions {

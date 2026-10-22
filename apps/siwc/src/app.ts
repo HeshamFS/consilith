@@ -1,92 +1,29 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import type { ChatGPTClient, SessionState } from "./types.js";
+import type { AccountManager } from "./accounts.js";
+import { ApiError, isSignedIn, LOGIN_URL_TIMEOUT_MS, LoginBridge, sha, toApiError } from "./common.js";
+import type { ChatGPTClient } from "./types.js";
+
+export { ApiError, LoginBridge };
 
 export const SECRET_HEADER = "x-consilith-siwc";
 const MAX_BODY_BYTES = 8 * 1024 * 1024;
-const LOGIN_URL_TIMEOUT_MS = 20_000;
 const MODEL_CACHE_MS = 5 * 60_000;
-
-/** Carries the sign-in URL from the DevKit's `openBrowser` hook to the `/login` response. */
-export class LoginBridge {
-  #url: string | undefined;
-  #waiters = new Set<(url: string) => void>();
-
-  /** Pass as `openBrowser` to the DevKit: capture the URL instead of opening a browser. */
-  readonly openBrowser = (url: string): void => {
-    this.#url = url;
-    for (const waiter of this.#waiters) waiter(url);
-    this.#waiters.clear();
-  };
-
-  reset(): void {
-    this.#url = undefined;
-  }
-
-  /** Resolves with the next published URL, or rejects after the timeout. */
-  next(timeoutMs: number): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.#waiters.delete(waiter);
-        reject(new ApiError(504, "login_timeout", "The ChatGPT sign-in URL was not produced in time."));
-      }, timeoutMs);
-      const waiter = (url: string) => { clearTimeout(timer); resolve(url); };
-      this.#waiters.add(waiter);
-    });
-  }
-}
-
-export class ApiError extends Error {
-  constructor(readonly status: number, readonly code: string, message: string) {
-    super(message);
-  }
-}
+const ACCOUNT_ROUTE = /^\/v2\/accounts\/([^/]+)\/(status|login|logout|models|reply|bind-legacy|callback)$/;
+const LEGACY_PATHS = ["/status", "/login", "/logout", "/models", "/reply"];
 
 export interface AppOptions {
   secret: string;
-  client: ChatGPTClient;
-  bridge: LoginBridge;
+  /** The single-account client and its login bridge. Used when `multi` is not given. */
+  client?: ChatGPTClient;
+  bridge?: LoginBridge;
+  /** The account map. Given only when the operator turned `CONSILITH_SIWC_MULTI` on. */
+  multi?: AccountManager;
   defaultModel?: string;
   /** Optional authenticated lifecycle hook for the managed desktop helper. */
   shutdown?: () => void;
   /** Called with method, path (no query) and status only. */
   log?: (line: string) => void;
-}
-
-const sha = (value: string) => createHash("sha256").update(value).digest();
-const isSignedIn = (s: SessionState) => s.status === "connected" && s.sharing;
-
-function toApiError(error: unknown): ApiError {
-  if (error instanceof ApiError) return error;
-  const e = error as { name?: unknown; code?: unknown; message?: unknown; status?: unknown } | null;
-  if (e && e.name === "ChatGPTError" && typeof e.code === "string" && typeof e.message === "string") {
-    // The DevKit builds these messages itself and keeps prompts and tokens out of them.
-    switch (e.code) {
-      case "subscription_sharing_usage_limit_exceeded":
-        return new ApiError(429, e.code, e.message);
-      case "sign_in_required":
-      case "reauth_required":
-      case "invalid_grant":
-      case "invalid_refresh_token":
-      case "refresh_token_expired":
-      case "refresh_token_invalidated":
-      case "refresh_token_reused":
-        return new ApiError(409, "not_signed_in", "Not signed in with ChatGPT. Call POST /login.");
-      case "sharing_not_enabled":
-        return new ApiError(409, "plan_usage_not_enabled", e.message);
-      case "connection_busy":
-        return new ApiError(409, "busy", e.message);
-      case "invalid_request":
-        return new ApiError(400, "invalid_request", e.message);
-      case "cancelled":
-        return new ApiError(499, "cancelled", e.message);
-      default: {
-        const status = typeof e.status === "number" && e.status >= 400 && e.status < 600 ? e.status : 502;
-        return new ApiError(status === 429 ? 429 : 502, e.code, e.message);
-      }
-    }
-  }
-  return new ApiError(500, "internal_error", "Unexpected error in the sidecar.");
 }
 
 async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
@@ -106,8 +43,28 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
   return parsed as Record<string, unknown>;
 }
 
+export interface ReplyBody {
+  system: string;
+  text: string;
+  model?: string;
+}
+
+async function readOptionalJson(req: IncomingMessage): Promise<Record<string, unknown>> {
+  const length = Number(req.headers["content-length"] ?? 0);
+  if (!length && !req.headers["transfer-encoding"]) {
+    req.resume();
+    return {};
+  }
+  return readJson(req);
+}
+
 export function createApp(options: AppOptions): Server {
-  const { client, bridge } = options;
+  const { multi } = options;
+  const client = options.client as ChatGPTClient;
+  const bridge = options.bridge as LoginBridge;
+  if (!multi && (!options.client || !options.bridge)) {
+    throw new Error("createApp needs a client and a login bridge, or an account manager.");
+  }
   const expected = sha(options.secret);
   const log = options.log ?? ((line: string) => console.log(line));
   let loginActive = false;
@@ -190,15 +147,20 @@ export function createApp(options: AppOptions): Server {
     }
   }
 
-  async function reply(req: IncomingMessage, signal: AbortSignal) {
+  async function parseReply(req: IncomingMessage): Promise<ReplyBody> {
     const body = await readJson(req);
     if (typeof body.system !== "string") throw new ApiError(400, "invalid_request", "`system` must be a string.");
     if (typeof body.text !== "string" || !body.text.trim()) throw new ApiError(400, "invalid_request", "`text` must be a non-empty string.");
     if (body.model !== undefined && (typeof body.model !== "string" || !body.model.trim())) {
       throw new ApiError(400, "invalid_request", "`model` must be a non-empty string when given.");
     }
+    return { system: body.system, text: body.text, ...(typeof body.model === "string" ? { model: body.model.trim() } : {}) };
+  }
+
+  async function reply(req: IncomingMessage, signal: AbortSignal) {
+    const body = await parseReply(req);
     await requireSignedIn();
-    let model = typeof body.model === "string" ? body.model.trim() : options.defaultModel;
+    let model = body.model ?? options.defaultModel;
     if (!model) {
       const first = (await models())[0];
       if (!first) throw new ApiError(502, "no_models", "The signed-in plan lists no usable models.");
@@ -216,6 +178,37 @@ export function createApp(options: AppOptions): Server {
   async function route(req: IncomingMessage, signal: AbortSignal): Promise<{ status: number; body: unknown }> {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const key = `${req.method} ${url.pathname}`;
+    if (key === "GET /v2/capabilities") {
+      return { status: 200, body: multi ? multi.capabilities() : { apiVersion: 2, multi: false } };
+    }
+    const account = ACCOUNT_ROUTE.exec(url.pathname);
+    if (account) {
+      if (!multi) throw new ApiError(404, "multi_disabled", "Several ChatGPT accounts are not enabled on this bridge.");
+      const [, accountKey, action] = account as unknown as [string, string, string];
+      const wanted = action === "status" || action === "models" ? "GET" : "POST";
+      if (req.method !== wanted) throw new ApiError(405, "method_not_allowed", "Method not allowed for this path.");
+      switch (action) {
+        case "status": return { status: 200, body: await multi.status(accountKey) };
+        case "login": {
+          const body = await readOptionalJson(req);
+          return { status: 200, body: await multi.login(accountKey, { newProfile: body.newProfile === true }) };
+        }
+        case "callback": {
+          const body = await readJson(req);
+          if (typeof body.callbackUrl !== "string" || !body.callbackUrl) {
+            throw new ApiError(400, "invalid_request", "`callbackUrl` must be a string.");
+          }
+          return { status: 200, body: await multi.submitCallback(accountKey, body.callbackUrl) };
+        }
+        case "logout": return { status: 200, body: await multi.logout(accountKey) };
+        case "bind-legacy": return { status: 200, body: await multi.bindLegacy(accountKey) };
+        case "models": return { status: 200, body: { models: await multi.models(accountKey), source: "plan" } };
+        default: return { status: 200, body: await multi.reply(accountKey, await parseReply(req), signal, options.defaultModel) };
+      }
+    }
+    if (multi && key !== "POST /shutdown" && LEGACY_PATHS.includes(url.pathname)) {
+      throw new ApiError(404, "legacy_routes_disabled", "Use /v2/accounts/:key/... while several accounts are enabled.");
+    }
     switch (key) {
       case "POST /shutdown": {
         if (!options.shutdown) throw new ApiError(404, "not_found", "Unknown path.");
@@ -231,7 +224,7 @@ export function createApp(options: AppOptions): Server {
       }
       case "POST /reply": return { status: 200, body: await reply(req, signal) };
     }
-    if (["/status", "/login", "/logout", "/models", "/reply"].includes(url.pathname)) {
+    if (LEGACY_PATHS.includes(url.pathname)) {
       throw new ApiError(405, "method_not_allowed", "Method not allowed for this path.");
     }
     throw new ApiError(404, "not_found", "Unknown path.");

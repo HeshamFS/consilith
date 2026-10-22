@@ -1,10 +1,12 @@
 import { homedir } from "node:os";
 import { readFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
+import { AccountManager } from "./accounts.js";
 import { createApp, LoginBridge } from "./app.js";
 import { createOsCredentialEncryption } from "./credential-encryption.js";
 import { loadDevkit } from "./devkit.js";
 import { createCallbackProxy } from "./callback-proxy.js";
+import type { ChatGPTClient } from "./types.js";
 
 function fail(message: string): never {
   console.error(`consilith-siwc: ${message}`);
@@ -43,26 +45,57 @@ try {
   fail(error instanceof Error ? error.message : String(error));
 }
 
-const bridge = new LoginBridge();
-const credentialEncryption = createOsCredentialEncryption(home);
-if (!await credentialEncryption.isAvailable()) {
+const multiOn = ["1", "true", "yes", "on"].includes((process.env.CONSILITH_SIWC_MULTI ?? "").trim().toLowerCase());
+const appId = process.env.CONSILITH_SIWC_APP_ID?.trim() || "consilith-siwc";
+const legacyEncryption = createOsCredentialEncryption(home);
+if (!await legacyEncryption.isAvailable()) {
   fail("OS credential encryption is unavailable. Unlock the operating-system credential store and restart.");
 }
-const client = devkit.createChatGPT({
-  appName: "Consilith",
-  appId: process.env.CONSILITH_SIWC_APP_ID?.trim() || "consilith-siwc",
-  redirectPort: callbackPort,
-  storageDir: home,
-  credentialEncryption,
-  openBrowser: bridge.openBrowser,
-});
+
+// One account: today's behaviour. Several: an account map, each with its own directory and key label.
+let manager: AccountManager | undefined;
+let single: { client: ChatGPTClient; bridge: LoginBridge } | undefined;
+if (multiOn) {
+  manager = new AccountManager({
+    secret,
+    home,
+    callbackPort: process.env.CONSILITH_SIWC_PASTE === "1" ? callbackPort : 0,
+    createClient: (spec) => devkit.createChatGPT({
+      appName: "Consilith",
+      appId,
+      redirectPort: callbackPort,
+      storageDir: spec.storageDir,
+      credentialEncryption: spec.legacy
+        ? legacyEncryption
+        : createOsCredentialEncryption(spec.storageDir, { account: spec.key }),
+      openBrowser: spec.openBrowser,
+    }),
+    ...(process.env.CONSILITH_SIWC_AUTH_ORIGINS?.trim()
+      ? { authOrigins: process.env.CONSILITH_SIWC_AUTH_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean) }
+      : {}),
+  });
+} else {
+  const bridge = new LoginBridge();
+  single = {
+    bridge,
+    client: devkit.createChatGPT({
+      appName: "Consilith",
+      appId,
+      redirectPort: callbackPort,
+      storageDir: home,
+      credentialEncryption: legacyEncryption,
+      openBrowser: bridge.openBrowser,
+    }),
+  };
+}
 
 const server = createApp({
   secret,
-  client,
-  bridge,
+  ...(single ?? {}),
+  ...(manager ? { multi: manager } : {}),
   ...(process.env.CONSILITH_SIWC_MANAGED === "1" ? { shutdown: () => {
-    client.cancelSignIn();
+    single?.client.cancelSignIn();
+    manager?.shutdown();
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 1000).unref();
   } } : {}),
