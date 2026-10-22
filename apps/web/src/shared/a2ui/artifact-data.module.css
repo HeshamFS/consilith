@@ -1,0 +1,106 @@
+/* A result's artifacts as a report: apps, charts in a grid, tables, then raw files. Only
+   Consilith tokens. The grid is laid out from the width of its own container, so a 460 px sheet
+   gets one column and the wide workspace gets as many as fit. */
+
+.report {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.section {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--ink-2);
+  font: 600 12px / 1.3 var(--font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.count {
+  color: var(--ink-3);
+  font-weight: 500;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.stack {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.grid {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+}
+
+/* A table with its caption and the CSV download under it. */
+.table {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.tableFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  padding-inline: var(--space-1);
+}
+
+.caption {
+  flex: 1 1 220px;
+  margin: 0;
+  color: var(--ink-3);
+  font: 400 12px / 1.5 var(--font-ui);
+}
+
+.csv {
+  flex: none;
+  min-height: 32px;
+  padding: 5px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--ink-2);
+  font: 500 12px var(--font-ui);
+  cursor: pointer;
+}
+
+.csv:hover {
+  border-color: var(--ink-3);
+  color: var(--ink);
+}
+
+.csv:focus-visible {
+  outline: 2px solid var(--seat-blue);
+  outline-offset: 2px;
+}
+
+/* A chart or a table alone in a tab: no dark viewport around it. */
+.bare {
+  min-width: 0;
+  margin: 0;
+}
+
+.bare > small {
+  display: block;
+  margin-top: var(--space-2);
+  color: var(--ink-3);
+  font: 400 11px / 1.5 var(--font-mono);
+  overflow-wrap: anywhere;
+}

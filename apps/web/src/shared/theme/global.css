@@ -67,3 +67,12 @@ textarea {
     transition-duration: 1ms !important;
   }
 }
+
+/* Scroll without a visible bar, everywhere in the app (Hesham, 2026-10-22): wheel, touch and keys
+   still scroll; long panels show an "up" control or fade instead. */
+* {
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}

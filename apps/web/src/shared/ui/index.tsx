@@ -129,7 +129,29 @@ const STAMP_ICON: Record<StampKind, IconName> = {
   checking: "checking",
 };
 
-export function Stamp({ kind, children }: { kind: StampKind; children?: ReactNode }) {
+export function Stamp({
+  kind,
+  children,
+  iconOnly = false,
+  title,
+}: {
+  kind: StampKind;
+  children?: ReactNode;
+  /** Just the icon, the words in its tooltip and accessible name (lists, the ledger). */
+  iconOnly?: boolean;
+  title?: string;
+}) {
+  if (iconOnly)
+    return (
+      <span
+        className={`${s.stampIcon} ${s[kind]}`}
+        role="img"
+        aria-label={title ?? kind}
+        title={title ?? kind}
+      >
+        <Icon name={STAMP_ICON[kind]} size={14} />
+      </span>
+    );
   return (
     <span className={`${s.stamp} ${s[kind]}`}>
       <Icon name={STAMP_ICON[kind]} size={13} />

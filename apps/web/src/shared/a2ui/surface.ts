@@ -3,8 +3,16 @@ import {
   CATALOG_ID,
   type Component,
   DATA_VIEWS,
+  LAYOUT_DENSITIES,
+  LAYOUT_EMPHASES,
+  LAYOUT_KINDS,
+  LAYOUT_RATIOS,
+  MAX_COMPONENTS,
+  MAX_DEPTH,
   PANELS,
   type Surface,
+  TEXT_VARIANTS,
+  VARIANTS,
 } from "./types";
 
 /** Applies a batch of A2UI messages to a surface. The room publishes complete replacements
@@ -48,12 +56,9 @@ export function applySurface(
   }
 }
 
-const MAX_COMPONENTS = 500;
-const MAX_DEPTH = 24;
 const MAX_RENDERED = 2000;
 const PANEL_SET = new Set<string>(PANELS);
 const VIEW_SET = new Set<string>(DATA_VIEWS);
-const TEXT_VARIANTS = new Set(["body", "caption", "h1", "h2", "h3"]);
 
 type Rec = Record<string, unknown>;
 const isObj = (v: unknown): v is Rec => !!v && typeof v === "object" && !Array.isArray(v);
@@ -62,6 +67,12 @@ const isBinding = (v: unknown) => isObj(v) && isStr(v.path) && v.path.startsWith
 const isText = (v: unknown) => isStr(v) || isBinding(v);
 const isIds = (v: unknown) => Array.isArray(v) && v.every(isStr);
 const optional = (v: unknown, check: (x: unknown) => boolean) => v === undefined || check(v);
+const isOneOf = (list: readonly string[], v: unknown) => isStr(v) && list.includes(v);
+/** A view that declares variants refuses any other; a view that declares none ignores it. */
+const honoured = (component: string, v: string) => {
+  const allowed = VARIANTS[component];
+  return !allowed || allowed.includes(v);
+};
 
 function envelope(raw: unknown): A2UIMessage | null {
   if (!isObj(raw) || raw.version !== "v0.9") return null;
@@ -96,10 +107,10 @@ export function component(c: unknown): c is Component {
         c.labels.length === c.children.length &&
         isStr(c.title) &&
         isStr(c.description) &&
-        ["stack", "grid", "split", "tabs", "section"].includes(String(c.kind)) &&
-        ["balanced", "focus-start", "focus-end"].includes(String(c.ratio)) &&
-        ["plain", "surface", "hero", "quiet"].includes(String(c.emphasis)) &&
-        ["comfortable", "compact"].includes(String(c.density))
+        isOneOf(LAYOUT_KINDS, c.kind) &&
+        isOneOf(LAYOUT_RATIOS, c.ratio) &&
+        isOneOf(LAYOUT_EMPHASES, c.emphasis) &&
+        isOneOf(LAYOUT_DENSITIES, c.density)
       );
     case "Column":
     case "Row":
@@ -109,7 +120,7 @@ export function component(c: unknown): c is Component {
     case "Divider":
       return true;
     case "Text":
-      return isText(c.text) && optional(c.variant, (v) => isStr(v) && TEXT_VARIANTS.has(v));
+      return isText(c.text) && optional(c.variant, (v) => isOneOf(TEXT_VARIANTS, v));
     case "ValueRow":
       return isStr(c.label) && isBinding(c.value) && optional(c.note, isText);
     case "ApprovalChip": {
@@ -128,7 +139,11 @@ export function component(c: unknown): c is Component {
           optional(c.phase, isBinding)
         );
       if (VIEW_SET.has(c.component))
-        return isBinding(c.data) && optional(c.title, isText) && optional(c.variant, isStr);
+        return (
+          isBinding(c.data) &&
+          optional(c.title, isText) &&
+          optional(c.variant, (v) => isStr(v) && honoured(c.component as string, v))
+        );
       return false;
   }
 }

@@ -20,6 +20,46 @@ type Room = {
   invites: { id: string; token: string; email: string | null }[];
 };
 
+/** The server's provider registry (`GET /providers`), as the mock mode serves it. */
+const MOCK_PROVIDERS = [
+  {
+    id: "scripted",
+    label: "No model",
+    auth: "none",
+    needsModel: false,
+    dataTerms: "Nothing leaves this host: replies come from built-in rules.",
+  },
+  {
+    id: "anthropic",
+    label: "Anthropic",
+    auth: "key",
+    needsModel: true,
+    defaultModel: "claude-sonnet-5-5",
+    dataTerms: "Your messages and room context are sent to Anthropic with your API key.",
+  },
+  {
+    id: "openai",
+    label: "OpenAI",
+    auth: "key",
+    needsModel: true,
+    dataTerms: "Your messages and room context are sent to OpenAI with your API key.",
+  },
+  {
+    id: "gemini",
+    label: "Google Gemini",
+    auth: "key",
+    needsModel: true,
+    dataTerms: "Your messages and room context are sent to Google with your API key.",
+  },
+  {
+    id: "siwc",
+    label: "Your ChatGPT plan",
+    auth: "chatgpt",
+    needsModel: true,
+    dataTerms: "Your messages and room context are sent to OpenAI through your own ChatGPT plan.",
+  },
+];
+
 const db = {
   people: new Map<string, Person>(),
   links: new Map<string, string>(),
@@ -200,6 +240,7 @@ function route(url: string, init: RequestInit): Response {
 
   if (path === "/auth/providers")
     return json(200, { email: true, github: false, devMailbox: true });
+  if (path === "/providers" && method === "GET") return json(200, { providers: MOCK_PROVIDERS });
   if (path === "/auth/email" && method === "POST") {
     const email = String(body.email ?? "")
       .trim()

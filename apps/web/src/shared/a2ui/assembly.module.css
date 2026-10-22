@@ -1,0 +1,199 @@
+/* Assembly: the agent places a workspace panel by panel. Colours come from tokens; the seat
+   colour arrives as --assemble-accent on the surface (neutral grey when nobody asked). */
+
+.bar {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows 220ms var(--ease),
+    margin 220ms var(--ease),
+    opacity 220ms var(--ease);
+}
+.bar[data-phase="rest"] {
+  grid-template-rows: 0fr;
+  margin-bottom: calc(var(--gap-section) * -1);
+  opacity: 0;
+}
+.barInner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 0;
+  overflow: hidden;
+  font: 500 var(--fs-label) / 16px var(--font-mono);
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+}
+.dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--assemble-accent, var(--ink-3));
+  animation: beat 900ms var(--ease) infinite;
+}
+.bar[data-phase="live"] .dot {
+  animation: none;
+  background: var(--live);
+}
+.barText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--assemble-accent, var(--ink-2));
+}
+.barCount {
+  margin-left: auto;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.reveal {
+  position: relative;
+  min-width: 0;
+  animation: rise var(--assemble-ms) var(--ease) both;
+}
+.reveal[data-placed="true"]::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border: 1.5px solid var(--assemble-accent, var(--ink-3));
+  border-radius: calc(var(--r-card) + 3px);
+  pointer-events: none;
+  animation: ring 700ms var(--ease) forwards;
+}
+
+.skeleton {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  min-height: 108px;
+  padding: var(--pad-panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  overflow: hidden;
+}
+.skeleton[data-placing="true"] {
+  border-color: var(--assemble-accent, var(--line-strong));
+}
+.skeleton[data-kind="ArtifactView"] {
+  min-height: 300px;
+}
+.skeleton[data-kind="Chart"],
+.skeleton[data-kind="Heatmap"] {
+  min-height: 190px;
+}
+.skeleton[data-kind="SchemaForm"],
+.skeleton[data-kind="ParameterGrid"] {
+  min-height: 210px;
+}
+.skeleton[data-kind="JobStatus"],
+.skeleton[data-kind="MetricGrid"] {
+  min-height: 96px;
+}
+.skHead,
+.skLine,
+.skBlock {
+  display: block;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--skeleton) 0%,
+    var(--skeleton-hi) 50%,
+    var(--skeleton) 100%
+  );
+  background-size: 220% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+.skHead {
+  width: 38%;
+  height: 12px;
+}
+.skLine {
+  width: 100%;
+  height: 9px;
+}
+.skLine[data-short="true"] {
+  width: 64%;
+}
+.skBlock {
+  flex: 1;
+  min-height: 24px;
+  opacity: 0.6;
+}
+.skCaption {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  font: 500 var(--fs-label) / 16px var(--font-mono);
+  letter-spacing: 0.04em;
+  color: var(--assemble-accent, var(--ink-2));
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(var(--assemble-rise));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ring {
+  from {
+    opacity: 0.9;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes shimmer {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+@keyframes beat {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .reveal[data-placed="true"]::after,
+  .skHead,
+  .skLine,
+  .skBlock,
+  .dot {
+    animation: none;
+  }
+  .bar {
+    transition: none;
+  }
+}
+
+.frame {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(0, 1.6fr);
+  gap: var(--gap-section);
+  align-items: start;
+}
+@media (max-width: 720px) {
+  .frame {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* An unplaced panel on the assembly stage: laid out at its real size but not shown yet; the
+   stage's box stands over it until it is placed. */
+.reveal[data-veiled="true"] {
+  visibility: hidden;
+  animation: none;
+}

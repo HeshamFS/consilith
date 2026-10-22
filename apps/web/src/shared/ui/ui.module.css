@@ -146,6 +146,16 @@
   color: var(--wait-fg);
 }
 
+/* An icon-only stamp: a 22 px round chip in the stamp's colours, the words in its tooltip. */
+.stampIcon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+
 .panel {
   border-radius: var(--r-lg);
   background: var(--surface);

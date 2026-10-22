@@ -1,0 +1,39 @@
+.prov {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--ink-3);
+  font: 400 var(--fs-label) / 16px var(--font-mono);
+  letter-spacing: 0;
+}
+.text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.copy {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.copy:hover {
+  background: var(--surface-3);
+  color: var(--ink);
+}
+.copy[data-copied="true"] {
+  color: var(--ok-fg);
+}
+.copy:focus-visible {
+  outline: 2px solid var(--seat-blue);
+  outline-offset: 1px;
+}
