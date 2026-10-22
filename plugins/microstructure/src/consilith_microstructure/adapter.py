@@ -11,7 +11,32 @@ from consilith_contracts.execution import Finding, SolveOutcome
 from . import __version__
 
 CONTRACT_VERSION = "1"
-TOOLS = ["microstructure.prepare_showcase", "microstructure.evolve_showcase"]
+REPORT_TOOL = "microstructure.report"
+DATASET_TOOL = "microstructure.dataset"
+ESTIMATE_TOOL = "adaption.estimate"
+ADAPT_TOOL = "adaption.adapt"
+# The first two stay at indexes 0 and 1: the showcase workflow and checker read them by index.
+TOOLS = [
+    "microstructure.prepare_showcase",
+    "microstructure.evolve_showcase",
+    REPORT_TOOL,
+    DATASET_TOOL,
+    ESTIMATE_TOOL,
+    ADAPT_TOOL,
+]
+SERVERS = {
+    "solver-microstructure": TOOLS[:4],
+    "solver-adaption": TOOLS[4:],
+}
+REPORT_MODE = "report"
+DATASET_MODE = "dataset"
+# The mode id is what the confirm card shows, so it says that credits are spent.
+ADAPT_MODE = "adapt-spends-credits"
+# Fetch the result of an adaptation that was still running; spends nothing.
+ADAPT_RESULT_MODE = "adapt-result"
+MODE_ALIASES = {"adapt": ADAPT_MODE}
+DERIVED_MODES = {REPORT_MODE, DATASET_MODE, ADAPT_MODE, ADAPT_RESULT_MODE, *MODE_ALIASES}
+PARAMETER_KEYS = ("duration", "gamma", "mobility", "width")
 DEFAULT_CONFIGURATION = {
     "crop": [],
     "annotation_policy": "detect-edge-strip",
@@ -24,15 +49,16 @@ DEFAULT_CONFIGURATION = {
     "duration": 600.0,
     "gamma": 1.0,
     "mobility": 1.0,
+    "growth": "auto",
 }
 
 MANIFEST = {
     "id": "microstructure",
     "distribution": "consilith-microstructure",
     "version": __version__,
-    "title": "Clear-grain evolution",
+    "title": "Microstructure grain growth",
     "description": (
-        "Upload a clear-grain image, review candidate boundaries, "
+        "Upload a micrograph, review candidate grain boundaries, "
         "then watch computed 2D grain growth."
     ),
     "capabilities": ["grain-growth"],
@@ -47,7 +73,19 @@ MANIFEST = {
         "the human to approve the displayed segmentation through reviewed_result. Never set "
         "that human-only field. Then run evolution. Show the full computed image sequence and "
         "energy history. Never invent grain values. All parameters are hypothetical and "
-        "dimensionless; segmentation is not validated against ground truth. No SAM is used."
+        "dimensionless; segmentation is not validated against ground truth. No SAM is used. "
+        "After an evolution, offer three follow-up modes of the same capability. "
+        "Mode 'report' writes a marimo HTML report of the run. Mode 'dataset' builds a small "
+        "question-and-answer training set from the run's own tables and asks Adaption Labs "
+        "for a credit estimate; nothing is spent. Mode 'adapt-spends-credits' spends those "
+        "credits: run it only after the dataset step has shown the estimate, and only when the "
+        "person asks for it. Never run adapt before the estimate. Adaption can take many "
+        "minutes: if the adapt step reports the run as still going, run mode 'adapt-result' "
+        "later to fetch the evaluation and the adapted rows (it spends nothing). The person "
+        "sets the training type, recipes, answer length and blueprint in the Training data "
+        "fields. The report is presentation; "
+        "the dataset is derived and illustrative; the Adaption score rates the text, not the "
+        "physics. Say so."
     ),
     "promptKnowledge": ["microstructure.showcase"],
     "roles": [
@@ -55,28 +93,33 @@ MANIFEST = {
             "id": "microstructure.operator",
             "label": "Microstructure researcher",
             "autonomy": "run_solvers",
-            "goal": "Review an uploaded grain map and explore a hypothetical 2D evolution",
-            "skills": ["clear-grain-showcase"],
+            "goal": (
+                "Review an uploaded grain map, explore a hypothetical 2D evolution, then offer "
+                "a report, a training set with a credit estimate, and only on request the adapt"
+            ),
+            "skills": ["micrograph-grain-growth"],
         }
     ],
     "tools": TOOLS,
     "skills": [
         {
-            "id": "clear-grain-showcase",
+            "id": "micrograph-grain-growth",
             "description": "Upload, human segmentation review, and bounded phase-field evolution",
-            "path": "skills/clear-grain-showcase/SKILL.md",
+            "path": "skills/micrograph-grain-growth/SKILL.md",
         }
     ],
     "knowledge": [
         {
             "id": "microstructure.showcase",
-            "title": "Clear-grain showcase limits",
+            "title": "Micrograph grain-growth limits",
             "path": "knowledge/showcase.md",
             "mediaType": "text/markdown",
         }
     ],
-    "mcpServers": [{"id": "solver-microstructure", "tools": TOOLS}],
-    "schemaRefs": {name: f"mcp://solver-microstructure/tools/{name}" for name in TOOLS},
+    "mcpServers": [{"id": server, "tools": tools} for server, tools in SERVERS.items()],
+    "schemaRefs": {
+        name: f"mcp://{server}/tools/{name}" for server, tools in SERVERS.items() for name in tools
+    },
     "packageDependencies": [
         "consilith-contracts",
         "numpy==2.4.2",
@@ -86,6 +129,8 @@ MANIFEST = {
         "numba==0.65.1",
         "mcp==2.3.0",
         "uvicorn==0.54.0",
+        "marimo==0.25.2",
+        "adaption==0.15.0",
     ],
     "artifactMediaTypes": [
         "image/png",
@@ -94,11 +139,16 @@ MANIFEST = {
         "image/gif",
         "application/json",
         "application/x-npz",
+        "text/html",
+        "application/jsonl",
     ],
     "policyPorts": ["snapshot", "artifact", "current_results", "result", "run_tool", "review"],
     "replayPolicy": {"relativeTolerance": 0, "absoluteTolerance": 0},
     "dependencies": [],
 }
+
+
+DERIVED_CHECKS = {REPORT_TOOL, DATASET_TOOL, ESTIMATE_TOOL, ADAPT_TOOL}
 
 
 def number(value):
@@ -120,7 +170,7 @@ def configuration(model):
     ):
         if key in image:
             config[key] = number(image[key])
-    for key in ("duration", "gamma", "mobility"):
+    for key in ("duration", "gamma", "mobility", "growth"):
         if key in evolution:
             config[key] = number(evolution[key])
     config["minimum_region"] = int(config["minimum_region"])
@@ -135,7 +185,151 @@ def configuration(model):
     return config
 
 
-async def workflow(ctx, *, review=True, **options):
+def run_parameters(report):
+    executed = report.get("executedConfiguration", {})
+    return {key: executed[key] for key in PARAMETER_KEYS if key in executed}
+
+
+def evolution_arguments(results):
+    """The trajectory block and parameters of the latest evolution result."""
+    record = results.get("evolution_report")
+    value = getattr(record, "value", None)
+    if (
+        record is None
+        or record.provenance.tool != TOOLS[1]
+        or record.stamp.value == "blocked"
+        or not isinstance(value, dict)
+        or not isinstance(value.get("trajectory"), dict)
+    ):
+        raise ValueError("Run the evolution first: this step reads its evolution_report result")
+    return {"trajectory": value["trajectory"], "parameters": run_parameters(value)}
+
+
+def latest_estimate(results):
+    """The current Adaption estimate, if it is still the one for the latest training set."""
+    record = results.get("adaption_estimate")
+    value = getattr(record, "value", None)
+    if record is None or not isinstance(value, dict):
+        raise ValueError(
+            "Run the dataset step first: it uploads the set and shows the credit estimate"
+        )
+    summary = results.get("training_set_summary")
+    stale = summary is not None and (summary.value or {}).get("sha256") != value.get("uploadSha256")
+    if stale or not value.get("withinLimit") or not isinstance(value.get("datasetId"), str):
+        raise ValueError(
+            "The latest estimate is over the credit limit or does not match the latest "
+            "training set; run the dataset step again"
+        )
+    return value
+
+
+async def finish(ctx, outcome, records, review):
+    if records and review:
+        outcome = await ctx.review(records, outcome)
+    outcome.stamps = {r.quantity: ctx.result(r.id).stamp.value for r in records}
+    return outcome
+
+
+TRAINING_KEYS = ("training_type", "recipes", "answer_length", "blueprint")
+
+
+def report_references(model):
+    """The report's related-work lines from the evolution lane, blank lines dropped."""
+    raw = model.get("evolution", {}).get("report_references") or ""
+    return [line.strip() for line in str(raw).splitlines() if line.strip()][:8]
+
+
+def training_options(model):
+    """Adaption's configuration step, from the person's Training data fields."""
+    evolution = model.get("evolution", {})
+    options = {}
+    for key in TRAINING_KEYS:
+        if key in evolution and evolution[key] not in (None, ""):
+            options["length" if key == "answer_length" else key] = number(evolution[key])
+    return options
+
+
+async def derived_workflow(ctx, mode, review):
+    """Report, training-set and Adaption steps, on the latest evolution of this capability."""
+    model, snapshot = ctx.snapshot(("image", "evolution"))
+    results = ctx.current_results()
+    try:
+        if mode == ADAPT_RESULT_MODE:
+            estimate = latest_estimate(results)
+            steps = [
+                (
+                    ADAPT_TOOL,
+                    {
+                        "dataset_id": estimate["datasetId"],
+                        "confirmed": True,
+                        "options": estimate.get("options") or {},
+                        "resume": True,
+                    },
+                    {"estimate_s": 300.0},
+                )
+            ]
+        elif mode == ADAPT_MODE:
+            estimate = latest_estimate(results)
+            credits = estimate["estimatedCredits"]
+            steps = [
+                (
+                    ADAPT_TOOL,
+                    {
+                        "dataset_id": estimate["datasetId"],
+                        "confirmed": True,
+                        "expected_credits": credits,
+                        # The options the person was quoted for, never different ones.
+                        "options": estimate.get("options") or {},
+                    },
+                    {
+                        "estimate_s": 600.0,
+                        "context": {
+                            "description": (
+                                f"Spends about {credits:g} Adaption credits to adapt "
+                                f"{estimate['rows']} rows and evaluate them"
+                            ),
+                            "creditsSpent": True,
+                            "estimatedCredits": credits,
+                            "rows": estimate["rows"],
+                        },
+                    },
+                )
+            ]
+        else:
+            tool = REPORT_TOOL if mode == REPORT_MODE else DATASET_TOOL
+            arguments = evolution_arguments(results)
+            if mode == REPORT_MODE:
+                arguments = {**arguments, "references": report_references(model)}
+            steps = [(tool, arguments, {"estimate_s": 60.0})]
+    except (ValueError, KeyError, TypeError) as exc:
+        return SolveOutcome(error=str(exc))
+    runs, records, error = [], [], None
+    for tool, arguments, options in steps:
+        run_id, _envelope, made, error = await ctx.run_tool(
+            tool, arguments, 2, snapshot=snapshot, **options
+        )
+        runs.append(run_id)
+        records += made
+    if not error and mode == DATASET_MODE:
+        summary = next((r for r in records if r.quantity == "training_set_summary"), None)
+        digest_ = ((summary.value if summary else None) or {}).get("sha256", "")
+        run_id, _envelope, made, error = await ctx.run_tool(
+            ESTIMATE_TOOL,
+            {**steps[0][1], "expected_sha256": digest_, "options": training_options(model)},
+            2,
+            snapshot=snapshot,
+            estimate_s=120.0,
+        )
+        runs.append(run_id)
+        records += made
+    outcome = SolveOutcome(runs=runs, results={r.quantity: r for r in records}, error=error)
+    return await finish(ctx, outcome, records, review)
+
+
+async def workflow(ctx, *, review=True, mode=None, **options):
+    mode = MODE_ALIASES.get(mode, mode)
+    if mode in DERIVED_MODES:
+        return await derived_workflow(ctx, mode, review)
     model, snapshot = ctx.snapshot(("image", "evolution"))
     try:
         source = model["image"].get("source", {})
@@ -186,7 +380,7 @@ async def workflow(ctx, *, review=True, **options):
                     "review": payload,
                     "approved_fingerprint": expected,
                     "evolution_parameters": {
-                        key: config[key] for key in ("duration", "gamma", "mobility")
+                        key: config[key] for key in ("duration", "gamma", "mobility", "growth")
                     },
                     "image_base64": base64.b64encode(raw).decode(),
                 },
@@ -206,10 +400,96 @@ async def workflow(ctx, *, review=True, **options):
     return outcome
 
 
+def media(item):
+    return [(a.media_type, a.role) for a in getattr(item, "artifacts", [])]
+
+
+def table_shaped(value):
+    return (
+        isinstance(value, dict)
+        and isinstance(value.get("columns"), list)
+        and isinstance(value.get("rows"), list)
+    )
+
+
+def whole(value):
+    """A count as the referee sees it: JSON numbers can arrive as floats (200.0)."""
+    return (
+        isinstance(value, int | float) and not isinstance(value, bool) and float(value).is_integer()
+    )
+
+
+def derived_findings(tool, item):
+    """Receipt checks for the report, training set and Adaption outputs, each with the honest
+    warning for what it is. None of them checks the physics."""
+    value, quantity = item.value, item.quantity
+    if tool == REPORT_TOOL:
+        passed = quantity == "microstructure_report" and media(item) == [("text/html", "report")]
+        warning = (
+            "report-is-presentation",
+            "The report presents the run's computed tables. It is not a check of the physics.",
+        )
+    elif tool == DATASET_TOOL:
+        if quantity == "training_set":
+            passed = media(item) == [("application/jsonl", "dataset")]
+        else:
+            passed = (
+                quantity == "training_set_summary"
+                and isinstance(value, dict)
+                and whole(value.get("rows"))
+                and 40 <= value["rows"] <= 200
+                and value.get("columns") == ["prompt", "completion"]
+            )
+        warning = (
+            "dataset-is-derived",
+            "Rows are derived from the run's own tables and are illustrative text about a "
+            "hypothetical dimensionless model, not data about a material.",
+        )
+    elif tool == ESTIMATE_TOOL:
+        passed = (
+            quantity == "adaption_estimate"
+            and isinstance(value, dict)
+            and isinstance(value.get("datasetId"), str)
+            and isinstance(value.get("estimatedCredits"), int | float)
+            and value.get("nothingSpent") is True
+        )
+        warning = (
+            "estimate-only",
+            "A credit quote from Adaption Labs. Nothing was spent; the adapt step spends credits.",
+        )
+    else:
+        if quantity == "adaption_evaluation":
+            passed = isinstance(value, dict) and isinstance(value.get("skipped"), bool)
+        elif quantity == "adaption_evaluation_table":
+            passed = table_shaped(value)
+        elif quantity == "adaption_adapted_dataset":
+            passed = media(item) == [("application/jsonl", "dataset")]
+        else:
+            passed = quantity == "adaption_spend" and isinstance(value, dict)
+        warning = (
+            "evaluation-is-text-quality",
+            "Adaption's evaluation is the vendor's score of the text quality of the rows. It is "
+            "not a check of the physics.",
+        )
+    return [
+        Finding(
+            Check(
+                name="derived-receipt",
+                outcome="pass" if passed else "fail",
+                detail="Checked the output name, kind, media type and declared shape.",
+            ),
+            "block",
+        ),
+        Finding(Check(name=warning[0], outcome="warn", detail=warning[1]), "warn"),
+    ], "bounded receipt review; derived output, not independent validation"
+
+
 async def checker(request, item, call):
     """Bounded receipt checks, explicitly not independent physics validation."""
     tool = request.manifest.tool
     args = request.manifest.arguments
+    if tool in DERIVED_CHECKS:
+        return derived_findings(tool, item)
     passed = item.kind in {"json", "artifact", "text"} and item.unit == ""
     allowed = (
         {
@@ -308,7 +588,7 @@ def role():
     return AgentConfig(
         autonomy=Autonomy.RUN_SOLVERS,
         tools_allowed=TOOLS,
-        skills=["clear-grain-showcase"],
+        skills=["micrograph-grain-growth"],
         compute_budget_s=600,
         goal="Review the supplied micrograph before exploring hypothetical grain growth",
     )
@@ -328,13 +608,14 @@ def numeric(name, label, default, minimum, maximum, *, integer=False):
 def extension():
     case = CaseDef(
         id="grain-growth",
-        label="Clear-grain evolution",
+        label="Microstructure grain growth",
         grammar=(
-            "Upload a clear-grain image. The entire native-resolution image is used. Run prepares "
+            "Upload a micrograph with visible grain boundaries. The entire native-resolution "
+            "image is used. Run prepares "
             "segmentation and transfer checks. Review the boundary overlay, approve "
             "the result, then Run again to compute the full dimensionless 2D evolution."
         ),
-        inputs=["clear-grain-image"],
+        inputs=["micrograph"],
         lanes=[
             LaneDef(
                 id="image",
@@ -343,7 +624,7 @@ def extension():
                 fields=[
                     FieldDef(
                         name="source",
-                        label="Upload clear-grain image (PNG, JPEG or TIFF)",
+                        label="Upload a micrograph (PNG, JPEG or TIFF)",
                         kind="object",
                         required=True,
                     ),
@@ -399,9 +680,65 @@ def extension():
                 label="Review and evolution",
                 default_role="microstructure.operator",
                 fields=[
-                    numeric("duration", "Evolution duration (dimensionless)", 600, 0.001, 10000),
+                    FieldDef(
+                        name="growth",
+                        label="Growth extent",
+                        kind="choice",
+                        choices=["auto", "fixed"],
+                        default="auto",
+                    ),
+                    numeric(
+                        "duration",
+                        "Evolution duration, fixed extent only (dimensionless)",
+                        600,
+                        0.001,
+                        10000,
+                    ),
                     numeric("gamma", "Interface energy (dimensionless)", 1, 0.00001, 100),
                     numeric("mobility", "Boundary mobility (dimensionless)", 1, 0.00001, 100),
+                    # Adaption's configuration step for the training set built from this run.
+                    FieldDef(
+                        name="training_type",
+                        label="Training data: what to build",
+                        kind="choice",
+                        choices=["instruction_dataset", "preference_pairs"],
+                        default="instruction_dataset",
+                    ),
+                    FieldDef(
+                        name="recipes",
+                        label="Training data: recipes",
+                        kind="multichoice",
+                        choices=["deduplication", "prompt_rephrase", "reasoning_traces"],
+                        default=["deduplication", "reasoning_traces"],
+                    ),
+                    FieldDef(
+                        name="answer_length",
+                        label="Training data: answer length",
+                        kind="choice",
+                        choices=["minimal", "concise", "detailed", "extensive"],
+                        default="concise",
+                    ),
+                    FieldDef(
+                        name="blueprint",
+                        label="Training data: blueprint (system instructions for the answers)",
+                        kind="text",
+                        multiline=True,
+                        default=(
+                            "You are a careful materials-science tutor. Answer from the "
+                            "simulation's own tables, state every number with its unit, and say "
+                            "that the model is hypothetical and dimensionless; never claim "
+                            "experimental validation."
+                        ),
+                    ),
+                    # Related work for the report, one per line (an agent can fill it from
+                    # Valency's paper search): title, authors, year and a link at the end.
+                    FieldDef(
+                        name="report_references",
+                        label="Report: related work, one per line (title, authors, year, link)",
+                        kind="text",
+                        multiline=True,
+                        default="",
+                    ),
                     FieldDef(
                         name="reviewed_result",
                         label="Approve displayed segmentation and parameters",
@@ -422,12 +759,15 @@ def extension():
         "checkers": {case.id: checker},
         "workflow_required_tools": {case.id: TOOLS},
         "default_modes": {case.id: "showcase"},
-        "queue_modes": {case.id: ["showcase"]},
+        "queue_modes": {
+            case.id: ["showcase", REPORT_MODE, DATASET_MODE, ADAPT_MODE, ADAPT_RESULT_MODE]
+        },
         "presentation": {
             case.id: {
                 "subtitle": "Upload → review boundaries → watch actual computed evolution",
                 "intakeBindings": {
-                    "clear-grain-image": {
+                    "micrograph": {
+                        "label": "Micrograph",
                         "lane": "image",
                         "field": "source",
                         "valueKind": "artifact",
@@ -437,5 +777,5 @@ def extension():
             }
         },
         "intake_hints": {case.id: ["grain", "micrograph", "microstructure", "grain growth"]},
-        "intake_kinds": {"clear-grain-image": case.id},
+        "intake_kinds": {"micrograph": case.id},
     }

@@ -9,6 +9,8 @@ dependencies = ["numpy==2.4.2", "scipy==1.17.0", "scikit-image==0.26.0", "Pillow
 [project.optional-dependencies]
 server = ["mcp==2.3.0", "uvicorn==0.54.0"]
 platform = ["consilith-contracts", "mcp==2.3.0", "uvicorn==0.54.0"]
+report = ["marimo==0.25.2"]
+adaption = ["consilith-contracts", "mcp==2.3.0", "uvicorn==0.54.0", "adaption==0.15.0"]
 test = ["pytest>=8,<10", "matplotlib>=3.10,<4"]
 
 [project.scripts]
