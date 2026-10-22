@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "crystal-genui"
+version = "0.2.0"
+description = "VESTA-style coordination-polyhedra analysis of Materials Project structures, served as an MCP generative UI"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "pymatgen>=2024.6",
+    "scipy",
+    "numpy",
+    "pydantic>=2",
+]
+
+[project.optional-dependencies]
+server = ["mcp>=2.3,<3", "uvicorn>=0.54,<1"]
+materials-project = ["mp-api>=0.41"]
+platform = ["consilith-contracts", "mcp>=2.3,<3", "uvicorn>=0.54,<1"]
+test = ["pytest>=8", "jsonschema>=4"]
+dev = ["pytest>=8", "jsonschema>=4", "mcp>=2.3,<3", "uvicorn>=0.54,<1"]
+
+[project.scripts]
+crystal-genui = "crystal_genui.cli:main"
+crystal-genui-mcp = "crystal_genui.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+crystal_genui = ["viewer.html", "schemas/*.json", "skills/*/SKILL.md", "knowledge/*.md"]
+
+[tool.uv]
+managed = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::UserWarning", "ignore::DeprecationWarning"]

@@ -11,6 +11,7 @@ A multiplayer agentic workspace with independently packaged capabilities. People
 - `packages/contracts` and `packages/plugin-runtime`: public schemas and isolated plugin transport.
 - `examples/agentic-plugin-template`: starter 1.1.2 with MCP tools, schemas, skills, knowledge, workflow, checker and an owner-approved proposal policy.
 - `plugins/microstructure`: independent experimental 2D reconstruction and grain-growth plugin, with MCP services, skills, knowledge and a standalone solver.
+- `plugins/crystal-genui`: independent crystal coordination analysis package, with a standalone MCP App and optional Consilith workflow. See the [plugin guide](plugins/crystal-genui/README.md).
 - `docker`, `tools` and deployment manifests: reproducible container builds and plugin lifecycle operations.
 
 The starter produces text, structured JSON and downloadable files without a numeric placeholder. An optional text-count operation demonstrates numeric compatibility. The optional microstructure plugin is included as experimental research software; its segmentation candidates require human review and its default kinetics are dimensionless scenarios, not experimentally calibrated predictions.
