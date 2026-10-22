@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import logging
+import time
 from collections.abc import Awaitable, Callable
 from typing import Any, TypeVar, cast
 
@@ -18,24 +20,34 @@ from consilith_contracts.workspace import (
 )
 
 from ..domain.service import RoomService
+from ..platform.errors import MODEL_ERROR_CODES, ModelError
 from ..protocols import a2ui, illustrative
 from ..protocols.journal import Journal
-from .models import ModelPort, NotConfigured, ScriptedModel
+from .model_resolver import Ready, Unavailable
+from .models import ModelPort, ScriptedModel
+from .providers.base import error_message
+
+log = logging.getLogger(__name__)
 
 T = TypeVar("T")
 STAMP_ORDER = ["blocked", "warning", "checking", "verified"]
+
+# Composition calls the model, so it is limited per (room, case, viewer): this many model
+# attempts in this many seconds. A preview and a cached composition cost no model call.
+COMPOSE_LIMIT = 6
+COMPOSE_WINDOW_S = 600.0
 
 
 def resolver(room: RoomService, journal: Journal | None = None) -> a2ui.Resolver:
     def resolve(pid: str) -> bool:
         if pid.startswith("call-") and journal is not None:
-            # Only a successful, validated solver result counts as provenance.
+            # Only a successful, validated solver result counts as provenance. The lookup is
+            # by correlation id through the journal's index, not a scan of the whole journal.
             return any(
-                e.get("correlationId") == pid
-                and e.get("protocol") == "MCP"
+                e.get("protocol") == "MCP"
                 and e.get("kind") == "tools/result"
                 and "summary" in (e.get("payload") or {})
-                for e in journal.entries(room.id)
+                for e in journal.by_correlation(room.id, pid)
             )
         if pid.startswith(a2ui.ILLUSTRATIVE_PREFIX):
             return illustrative.resolves(pid)
@@ -158,17 +170,39 @@ def _worst(*stamps: str | None) -> str:
     return min(present, key=STAMP_ORDER.index) if present else "checking"
 
 
+def latest_failure(runs: dict[str, dict[str, Any]], case: str) -> dict[str, Any] | None:
+    """The case's failed run to show, only when it is the latest finished run: a failure that a
+    later run got past is history (found live: a timed-out Adaption call stayed on screen after
+    the result arrived)."""
+    finished = [
+        r
+        for r in runs.values()
+        if r.get("case") == case and r.get("status") in ("done", "late", "failed", "timeout")
+    ]
+    if finished and finished[-1].get("status") in ("failed", "timeout"):
+        return finished[-1]
+    return None
+
+
 class Composer:
-    def __init__(self, journal: Journal) -> None:
+    def __init__(self, journal: Journal, clock: Callable[[], float] = time.monotonic) -> None:
         self.journal = journal
+        self.clock = clock
+        self.attempts: dict[tuple[str, str, str], list[float]] = {}
         self.plans: dict[tuple[str, str, str], WorkspacePlan] = {}
         self.plan_sources: dict[tuple[str, str, str], dict[str, str]] = {}
         self.plan_contexts: dict[tuple[str, str, str], str] = {}
         self.attempted_contexts: dict[tuple[str, str, str], str] = {}
         self.assembly: dict[tuple[str, str, str], str] = {}
         self.revealed: dict[tuple[str, str, str], int] = {}
+        # What the composer actually did so far, in order, for the studio's progress log.
+        self.progress: dict[tuple[str, str, str], list[str]] = {}
         self.execution: dict[tuple[str, str], str] = {}
-        self.locks: dict[tuple[str, str, str], asyncio.Lock] = {}
+        # One workspace per room and case (Hesham, 2026-10-22): whoever composes first sets the
+        # layout, and every seat gets the same one with its own data and permissions, so a
+        # cursor or a "look at this panel" means the same place for everyone.
+        self.room_plans: dict[tuple[str, str], tuple[WorkspacePlan, dict[str, str]]] = {}
+        self.locks: dict[tuple[str, str], asyncio.Lock] = {}
 
     def bindings(self, case: str, room: RoomService | None = None) -> dict[str, list[str]]:
         definition = (room.case_definitions() if room is not None else all_extensions("cases"))[
@@ -236,18 +270,41 @@ class Composer:
             ),
         )
 
+    def note(self, room: RoomService, case: str, viewer: str, text: str) -> None:
+        """Record one step the composer has just reached and publish it with the skeleton. Call
+        it when the step happens, never ahead of time: the studio shows these lines as they are."""
+        key = (room.id, case, viewer)
+        self.progress.setdefault(key, []).append(text)
+        self.surface(room, case, viewer, "skeleton")
+
+    def allow_attempt(self, key: tuple[str, str, str]) -> float:
+        """0 when this (room, case, viewer) may call the model now, and otherwise the seconds to
+        wait. A call that is allowed is counted."""
+        now = self.clock()
+        recent = [t for t in self.attempts.get(key, []) if now - t < COMPOSE_WINDOW_S]
+        if len(recent) >= COMPOSE_LIMIT:
+            self.attempts[key] = recent
+            return max(1.0, COMPOSE_WINDOW_S - (now - recent[0]))
+        recent.append(now)
+        self.attempts[key] = recent
+        return 0.0
+
     async def prepare(
         self,
         room: RoomService,
         case: str,
         viewer: str,
-        model: ModelPort,
+        model: ModelPort | Ready | Unavailable,
         request: str = "",
         preview: bool = False,
     ) -> tuple[int, list[dict[str, Any]]]:
-        """Serialize composition per viewer so reconnects cannot duplicate provider calls."""
-        key = (room.id, case, viewer)
-        async with self.locks.setdefault(key, asyncio.Lock()):
+        """Serialize composition per viewer so reconnects cannot duplicate provider calls.
+
+        ``model`` may be what the resolver returned: ``Unavailable`` shows ``model_required``
+        with the resolver's words and fix action, and ``Ready`` is unwrapped."""
+        # Per room and case: a second seat waits for the first composition instead of starting
+        # its own, then takes the room's layout.
+        async with self.locks.setdefault((room.id, case), asyncio.Lock()):
             return await self._prepare(room, case, viewer, model, request, preview)
 
     async def _prepare(
@@ -255,7 +312,7 @@ class Composer:
         room: RoomService,
         case: str,
         viewer: str,
-        model: ModelPort,
+        model: ModelPort | Ready | Unavailable,
         request: str = "",
         preview: bool = False,
     ) -> tuple[int, list[dict[str, Any]]]:
@@ -263,6 +320,17 @@ class Composer:
         import json
 
         key = (room.id, case, viewer)
+        shared = self.room_plans.get((room.id, case))
+        if shared is not None and not request and not preview:
+            # The room already has its workspace: this seat gets the same one, with no model
+            # call (and so no model needed). It still assembles in front of the person.
+            return await self._place(room, case, viewer, *shared)
+        if isinstance(model, Unavailable):
+            if not preview:
+                return self._unavailable(room, case, viewer, model)
+            model = ScriptedModel()  # a preview needs no model
+        if isinstance(model, Ready):
+            model = cast(ModelPort, model.model)
         context_id = json.dumps(
             [
                 model.name,
@@ -289,6 +357,7 @@ class Composer:
         self.attempted_contexts[key] = context_id
         self.assembly[key] = "composing"
         self.revealed[key] = 0
+        self.progress[key] = []
         self.surface(room, case, viewer, "skeleton")
         bindings = self.bindings(case, room)
         context = {
@@ -307,6 +376,7 @@ class Composer:
                 "graphite model viewport; Instrument typography; meaningful seat accents."
             ),
         }
+        self.note(room, case, viewer, "Reading the capability")
         system = (
             "Compose a complete declarative workspace from the supplied capability and catalog. "
             "Design a distinctive task-driven nested layout, not a uniform dashboard grid. "
@@ -335,10 +405,27 @@ class Composer:
             else "Connect a model to assemble your workspace",
         }
         plan = self.default_plan(case, room)
-        if not preview and not isinstance(model, ScriptedModel):
+        invalid = False
+        if preview or isinstance(model, ScriptedModel):
+            self.note(room, case, viewer, "Using the standard layout")
+        else:
+            # A layout that fails the binding check gets one more attempt with the validation
+            # feedback (a JSON repair in the adapter cannot fix a wrong binding). A
+            # ``ModelError`` is never retried here: the adapter already retried what it could.
             for _attempt in range(2):
+                wait = self.allow_attempt(key)
+                if wait:
+                    source["code"] = "rate_limited"
+                    source["detail"] = (
+                        f"You have composed several times in a row. Try again in {wait:.0f} s."
+                    )
+                    break
                 try:
+                    self.note(
+                        room, case, viewer, "Choosing controls and laying out the model space"
+                    )
                     proposed = await model.structured(system, json.dumps(context), WorkspacePlan)
+                    self.note(room, case, viewer, "Checking bindings")
                     proposed.check(bindings)
                     plan = proposed
                     source = {
@@ -347,23 +434,22 @@ class Composer:
                         "detail": "Validated model composition",
                     }
                     break
-                except ValueError as exc:
-                    context["validationFeedback"] = str(exc)[:500]
-                    source["detail"] = "The model returned an invalid workspace. Try again."
-                except NotConfigured as exc:
-                    code = getattr(exc, "code", None)
-                    if code == "subscription_sharing_usage_limit_exceeded":
-                        source["code"] = code
-                        source["detail"] = (
-                            "Your ChatGPT sharing limit has been reached. Review usage and "
-                            "app limits in ChatGPT Settings, or connect another model."
-                        )
-                    else:
-                        source["code"] = "provider_unavailable"
-                        source["detail"] = (
-                            "Your model connection is unavailable. Review your provider settings."
-                        )
+                except ModelError as exc:
+                    # One message table for every provider: the same failure reads the same.
+                    source["code"] = exc.code
+                    source["detail"] = (
+                        error_message(exc.code)
+                        if exc.code in MODEL_ERROR_CODES
+                        else exc.user_message
+                    )
+                    if exc.fix_action:
+                        source["fixAction"] = exc.fix_action
                     break
+                except ValueError as exc:
+                    invalid = True
+                    context["validationFeedback"] = str(exc)[:500]
+                    log.warning("composed workspace for %s rejected: %s", case, str(exc)[:300])
+                    source["detail"] = "The model returned an invalid workspace. Try again."
                 except Exception:
                     # Provider failures are not automatically retried or billed twice.
                     source["detail"] = (
@@ -371,6 +457,14 @@ class Composer:
                         "connection and try again."
                     )
                     break
+        if source["kind"] == "unavailable" and invalid:
+            # Twice a layout that does not validate: the standard layout, said plainly, rather
+            # than an empty studio. The person can ask for a composition again.
+            source = {
+                "kind": "preview",
+                "model": source["model"],
+                "detail": "Standard layout: the model's own layout did not pass the checks",
+            }
         if source["kind"] == "unavailable":
             self.plan_sources[key] = source
             self.assembly[key] = (
@@ -379,14 +473,55 @@ class Composer:
             self.revealed[key] = 0
             return self.surface(room, case, viewer, "rest")
         self.plan_contexts[key] = context_id
+        if not preview:
+            # The room's workspace from now on; seats already showing one move to it.
+            self.room_plans[(room.id, case)] = (plan, source)
+            for other in [k for k in self.plans if k[:2] == (room.id, case) and k != key]:
+                self.plans[other] = plan
+                self.plan_sources[other] = source
+                if self.assembly.get(other) == "ready":
+                    self.revealed[other] = len(plan.blocks)
+                    self.surface(room, case, other[2], "rest")
+        return await self._place(room, case, viewer, plan, source)
+
+    async def _place(
+        self,
+        room: RoomService,
+        case: str,
+        viewer: str,
+        plan: WorkspacePlan,
+        source: dict[str, str],
+    ) -> tuple[int, list[dict[str, Any]]]:
+        """Show ``plan`` to one seat, panel by panel."""
+        key = (room.id, case, viewer)
+        if self.plans.get(key) is plan and self.assembly.get(key) == "ready":
+            return self.surface(room, case, viewer, "rest")
         self.plans[key] = plan
         self.plan_sources[key] = source
         self.assembly[key] = "assembling"
+        self.note(room, case, viewer, "Placing panels")
         for count in range(1, len(plan.blocks) + 1):
             self.revealed[key] = count
             self.surface(room, case, viewer, "materialising")
             await asyncio.sleep(0.025)
         self.assembly[key] = "ready"
+        return self.surface(room, case, viewer, "rest")
+
+    def _unavailable(
+        self, room: RoomService, case: str, viewer: str, why: Unavailable
+    ) -> tuple[int, list[dict[str, Any]]]:
+        """The resolver says no model can run: show ``model_required`` with its words and the
+        action that fixes it (for example ``reconnect``)."""
+        key = (room.id, case, viewer)
+        self.plan_sources[key] = {
+            "kind": "unavailable",
+            "model": "none",
+            "detail": why.reason,
+            "code": why.code,
+            **({"fixAction": why.fix_action} if why.fix_action else {}),
+        }
+        self.assembly[key] = "model_required"
+        self.revealed[key] = 0
         return self.surface(room, case, viewer, "rest")
 
     def compose(
@@ -423,6 +558,7 @@ class Composer:
                 "workspaceTitle": plan.title,
                 "workspaceIntent": plan.intent,
                 "wiring": {},
+                "progress": list(self.progress.get(key, [])),
             },
             "inputs": {},
         }
@@ -814,13 +950,8 @@ class Composer:
                 }
             )
             root.append(f"tension.{tid}")
-        failed = [
-            r
-            for r in cast(dict[str, dict[str, Any]], room.read("runs") or {}).values()
-            if r.get("case") == case and r.get("status") in ("failed", "timeout")
-        ]
-        if failed:
-            last = failed[-1]
+        last = latest_failure(cast(dict[str, dict[str, Any]], room.read("runs") or {}), case)
+        if last is not None:
             data["failure"] = {
                 "text": f"{last['tool']} {last['status']}: {last.get('error', '')}",
                 "runId": last.get("id"),

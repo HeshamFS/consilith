@@ -9,8 +9,9 @@ INPUT_REQUIRED until the lane owner decides; the room then continues it to COMPL
 from __future__ import annotations
 
 import logging
+import uuid
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from a2a.helpers import new_task_from_user_message
 from a2a.helpers.proto_helpers import get_data_parts, get_text_parts, new_data_part
@@ -30,7 +31,14 @@ from a2a.types import (
     TaskState,
 )
 from a2a.utils.errors import TaskNotCancelableError
-from consilith_contracts import AgentProposalOp, PatchOp
+from consilith_contracts import (
+    PEER_MEDIA_TYPE,
+    PEER_REPLY_MEDIA_TYPE,
+    AgentProposalOp,
+    PatchOp,
+    PeerEnvelope,
+    PeerSendRequest,
+)
 from consilith_contracts.review import (
     DECISION_MEDIA_TYPE,
     PROPOSAL_MEDIA_TYPE,
@@ -38,6 +46,7 @@ from consilith_contracts.review import (
     SWARM_MEDIA_TYPE,
 )
 from google.protobuf import struct_pb2
+from google.protobuf.json_format import MessageToDict
 from pydantic import ValidationError
 
 from ..domain.actors import Actor
@@ -48,11 +57,16 @@ from ..platform import skills as skill_store
 from ..protocols.a2a_host import HostedAgent, caller_of
 from ..protocols.mcp_client import SolverRegistry
 
+if TYPE_CHECKING:
+    from .peer import PeerRelay
+
 log = logging.getLogger("consilith.hosted")
 EXT_URI = "https://consilith.local/a2a/ext/agent-profile/v1"
 VERSION = "0.1.0"
 ROOM_AGENTS = ("conductor", "swarm", "solvers")
 ROOM_SYSTEM = "room"  # the room server itself, when it continues a proposal task
+# A request for a personal agent's detailed profile, answered only to an authenticated caller.
+PROFILE_MEDIA_TYPE = "application/vnd.consilith.agent-profile+json"
 
 Reply = Callable[[RoomService, str, str], Awaitable[str]]
 SwarmFn = Callable[[RoomService, dict[str, Any]], Awaitable[dict[str, Any]]]
@@ -72,11 +86,14 @@ def _interface(base: str) -> list[AgentInterface]:
     ]
 
 
-def personal_card(room: RoomService, aid: str, base: str) -> AgentCard:
+def agent_profile(room: RoomService, aid: str) -> dict[str, Any]:
+    """The detailed profile of a personal agent: owner, lanes, tools, autonomy, permissions and
+    a memory count. It is not on the unauthenticated card; an authenticated caller asks the
+    agent for it (``PROFILE_MEDIA_TYPE``). It never names the provider or the model."""
     node = room.agent(aid)
     owner = str(node["owner"])
     cfg = room.agent_config(aid)
-    loaded, missing = skill_store.load(cfg.skills, active_skills(room))
+    _loaded, missing = skill_store.load(cfg.skills, active_skills(room))
     owned = [
         f"{c}/{ln}"
         for c, lanes in room.lane_owners().items()
@@ -84,7 +101,7 @@ def personal_card(room: RoomService, aid: str, base: str) -> AgentCard:
         if o == owner
     ]
     lessons = room.lessons_for(aid)
-    profile = {
+    return {
         "owner": owner,
         "kind": "personal",
         "brought": bool(node.get("brought")),
@@ -94,22 +111,28 @@ def personal_card(room: RoomService, aid: str, base: str) -> AgentCard:
         "autonomy": cfg.autonomy.value,
         "permissions": {"edits": owned, "proposesElsewhere": True},
         "computeBudgetS": cfg.compute_budget_s,
-        # The card is public: a memory summary is a count. Lesson texts, the goal and the
-        # watches stay with the owner (the drawer and the authenticated config endpoint).
+        # A memory summary is a count. Lesson texts, the goal and the watches stay with the
+        # owner (the drawer and the authenticated config endpoint).
         "memory": {"lessons": len(lessons)},
         "missingSkills": missing,
         "status": node.get("status", "idle"),
     }
+
+
+def personal_card(room: RoomService, aid: str, base: str) -> AgentCard:
+    """The unauthenticated card of a personal agent: its name, protocol and skills, and nothing
+    else. It carries no lanes, tools, autonomy, provider or model, and it does not stream. The
+    detail is behind the agent token (``agent_profile``)."""
+    node = room.agent(aid)
+    owner = str(node["owner"])
+    cfg = room.agent_config(aid)
+    loaded, _missing = skill_store.load(cfg.skills, active_skills(room))
     person = room.read("room", "people", owner) or {}
     return AgentCard(
         name=aid,
-        description=f"Personal agent of {person.get('name', owner)} "
-        f"({person.get('roleLabel', '')}). Edits its owner's lanes directly and only proposes "
-        "everywhere else.",
+        description=f"Personal agent of {person.get('name', owner)}.",
         version=VERSION,
-        capabilities=AgentCapabilities(
-            streaming=True, push_notifications=False, extensions=[_ext(profile)]
-        ),
+        capabilities=AgentCapabilities(streaming=False, push_notifications=False),
         default_input_modes=["text/plain", "application/json"],
         default_output_modes=["text/plain", "application/json"],
         skills=[
@@ -151,7 +174,7 @@ def room_agent_card(
         description=ROOM_AGENT_TEXT[name],
         version=VERSION,
         capabilities=AgentCapabilities(
-            streaming=True, push_notifications=False, extensions=[_ext(profile)]
+            streaming=False, push_notifications=False, extensions=[_ext(profile)]
         ),
         default_input_modes=["text/plain", "application/json"],
         default_output_modes=["text/plain", "application/json"],
@@ -163,10 +186,22 @@ def room_agent_card(
     )
 
 
-def _message(text: str) -> Message:
-    import uuid
+def _message(
+    text: str, data: dict[str, Any] | None = None, media_type: str | None = None
+) -> Message:
+    parts = [Part(text=text)]
+    if data is not None:
+        parts.append(new_data_part(data, media_type=media_type))
+    return Message(role=Role.ROLE_AGENT, message_id=str(uuid.uuid4()), parts=parts)
 
-    return Message(role=Role.ROLE_AGENT, message_id=str(uuid.uuid4()), parts=[Part(text=text)])
+
+def _media_data(msg: Message, media_type: str) -> list[dict[str, Any]]:
+    """The data parts of a message that carry ``media_type``."""
+    return [
+        MessageToDict(p.data)
+        for p in msg.parts
+        if p.HasField("data") and p.media_type == media_type
+    ]
 
 
 class _Base(AgentExecutor):
@@ -179,12 +214,21 @@ class _Base(AgentExecutor):
 
 
 class PersonalExecutor(_Base):
-    """Talks for one person's agent. Only its owner's tokens or room agents may address it."""
+    """Talks for one person's agent. Only room agents may address it, and whatever they send runs
+    as a peer turn: the owner's own words never arrive here (they come over AG-UI), so nothing
+    that reaches this executor has the owner's authority."""
 
-    def __init__(self, room: RoomService, aid: str, reply: Reply) -> None:
+    def __init__(
+        self,
+        room: RoomService,
+        aid: str,
+        reply: Reply | None = None,
+        peers: PeerRelay | None = None,
+    ) -> None:
         self.room = room
         self.aid = aid
-        self.reply = reply
+        self.reply = reply  # kept for callers that still pass it; no path here uses it
+        self.peers = peers
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         caller = caller_of(context)
@@ -196,6 +240,12 @@ class PersonalExecutor(_Base):
                 _message("refused: an authenticated agent token is required")
             )
             return
+        if _media_data(msg, PROFILE_MEDIA_TYPE):
+            profile = agent_profile(self.room, self.aid)
+            await event_queue.enqueue_event(
+                _message("profile", {"profile": profile}, PROFILE_MEDIA_TYPE)
+            )
+            return
         if caller not in (ROOM_SYSTEM, *ROOM_AGENTS, "referee"):
             # Another person's agent never speaks to this agent directly: agents negotiate
             # through the conductor, and nobody gets an answer on this owner's behalf.
@@ -203,15 +253,47 @@ class PersonalExecutor(_Base):
                 _message(f"refused: {caller} may not address {self.aid}; go through the conductor")
             )
             return
-        text = " ".join(get_text_parts(list(msg.parts))) or "(data)"
-        owner = str(self.room.agent(self.aid)["owner"])
-        answer = await self.reply(self.room, owner, text)
-        await event_queue.enqueue_event(_message(answer or "(no answer)"))
+        peers = self.peers
+        if peers is None:
+            # Peer messages are off: nothing a room agent sends here is acted on, and nothing is
+            # answered in the owner's name. The agent only acknowledges.
+            await event_queue.enqueue_event(
+                _message("noted: this agent takes no instructions from other agents")
+            )
+            return
+        sent = _media_data(msg, PEER_MEDIA_TYPE)
+        if sent and caller != "conductor":
+            await event_queue.enqueue_event(
+                _message("refused: only the conductor delivers a peer message")
+            )
+            return
+        try:
+            if sent:
+                envelope = PeerEnvelope.model_validate(sent[0])
+            else:
+                text = " ".join(get_text_parts(list(msg.parts))) or "(data)"
+                envelope = peers.envelope_for_text(self.room, self.aid, caller, text)
+        except (ValidationError, RoomError):
+            await event_queue.enqueue_event(_message("refused: not a valid peer message"))
+            return
+        if envelope.to.agent != self.aid:
+            await event_queue.enqueue_event(_message("refused: that message is for another agent"))
+            return
+        reply = await peers.respond(self.room, self.aid, envelope)
+        if reply is None:
+            await event_queue.enqueue_event(
+                _message("(no reply)", {"peerReply": None}, PEER_REPLY_MEDIA_TYPE)
+            )
+            return
+        await event_queue.enqueue_event(
+            _message(reply.text or "(no reply)", {"peerReply": reply.wire()}, PEER_REPLY_MEDIA_TYPE)
+        )
 
 
 class ConductorExecutor(_Base):
-    def __init__(self, room: RoomService) -> None:
+    def __init__(self, room: RoomService, peers: PeerRelay | None = None) -> None:
         self.room = room
+        self.peers = peers
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         caller = caller_of(context)
@@ -228,11 +310,46 @@ class ConductorExecutor(_Base):
         if current is not None and current.status.state == TaskState.TASK_STATE_INPUT_REQUIRED:
             await self._continue(context, event_queue, caller, data)
             return
+        # The relay branch runs before the ".agent means proposal" branch: a peer message is a
+        # data part with its own media type, and it is never read as a proposal.
+        sent = _media_data(msg, PEER_MEDIA_TYPE)
+        if sent:
+            await self._relay(msg, event_queue, caller, sent[0])
+            return
         if data and caller.endswith(".agent"):
             await self._propose(context, event_queue, caller, data[0])
             return
         await event_queue.enqueue_event(
             _message("conductor: send a proposal (" + PROPOSAL_MEDIA_TYPE + ") or a question")
+        )
+
+    async def _relay(self, msg: Message, q: EventQueue, caller: str, data: dict[str, Any]) -> None:
+        """Relay one peer message. The sender is the token's agent (``caller_of``), never a field
+        of the message, and it supplies only ``to``, ``kind``, ``text`` and ``refs``: the
+        envelope is built by the conductor (``PeerRelay.accept``)."""
+
+        async def refuse(code: str, text: str) -> None:
+            ack = {"ok": False, "code": code, "text": text}
+            await q.enqueue_event(_message(f"refused: {text}", {"peerAck": ack}))
+
+        if self.peers is None:
+            await refuse("off", "agent-to-agent messages are not switched on")
+            return
+        if not caller.endswith(".agent"):
+            await refuse("refused", "only a personal agent sends a peer message")
+            return
+        try:
+            request = PeerSendRequest.model_validate(data)
+            node = self.room.agent(caller)
+        except (ValidationError, RoomError):
+            await refuse("refused", "not a valid peer message")
+            return
+        if node.get("owner") != caller.removesuffix(".agent"):
+            await refuse("refused", "caller is not that person's agent")
+            return
+        ack = await self.peers.accept(self.room, caller, request, msg.message_id)
+        await q.enqueue_event(
+            _message("queued" if ack.ok else f"refused: {ack.text}", {"peerAck": ack.wire()})
         )
 
     async def _propose(
@@ -387,6 +504,7 @@ class HostedAgents:
         self.registry = registry
         self.reply = reply
         self.explore = explore
+        self.peers: PeerRelay | None = None  # set by the runtime when peer messages are on
 
     def base(self, room: str, aid: str) -> str:
         return f"{self.public_url}/a2a/{room}/{aid}"
@@ -400,7 +518,7 @@ class HostedAgents:
         if aid in ROOM_AGENTS:
             executor: AgentExecutor
             if aid == "conductor":
-                executor = ConductorExecutor(room)
+                executor = ConductorExecutor(room, self.peers)
             elif aid == "swarm":
                 executor = SwarmExecutor(room, self.explore)
             else:
@@ -412,5 +530,5 @@ class HostedAgents:
             return None
         return HostedAgent(
             card=lambda: personal_card(room, aid, base),
-            executor=PersonalExecutor(room, aid, self.reply),
+            executor=PersonalExecutor(room, aid, self.reply, self.peers),
         )

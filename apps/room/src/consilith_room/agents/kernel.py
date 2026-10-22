@@ -28,11 +28,12 @@ from ..domain.lessons import rule_blocks
 from ..domain.plugin_access import active_skills, active_tools, require_extension
 from ..domain.service import RoomService
 from ..platform import skills as skill_store
-from ..platform.keys import SessionKeys
+from ..platform.keys import SessionKeys, current_session
 from .composer import Composer
 from .conductor import Conductor
 from .execution import RoomAgentContext, RoomProposalContext
-from .models import ModelPort, ScriptedModel, model_for
+from .model_resolver import ModelResolver, Resolution, resolve_model
+from .models import ModelPort, ScriptedModel
 from .status import acting
 
 log = logging.getLogger("consilith.kernel")
@@ -47,31 +48,40 @@ class Kernel:
         composer: Composer,
         send_proposal: SendProposal,
         keys: SessionKeys | None = None,
+        resolver: ModelResolver | None = None,
     ) -> None:
         self.conductor = conductor
         self.composer = composer
         self.send_proposal = send_proposal
         self.keys = keys
+        # The one resolver (and, through it, the one meter) every model call goes through.
+        self.resolver = resolver
         self.notes: list[str] = []
         self.tier2: Any = None  # the Tier2Queue, set by the runtime
         self.brought: Any = None  # BroughtAgents, set by the runtime
+        # The agent loop's runner, set by the runtime when the loop is on (WS-L). While it is
+        # set, ``respond`` is a thin call to it; with it unset, ``respond`` is unchanged.
+        self.turn_runner: Any = None
 
     def model(self, room: RoomService, aid: str) -> ModelPort:
-        cfg = room.agent_config(aid)
-        owner = str(room.agent(aid)["owner"])
-        key = self.keys.for_run(owner, cfg.model_provider) if self.keys is not None else None
-        if cfg.model_provider == "siwc":
-            from . import models as _models
+        """The agent's model for callers that cannot show an error (the studio composer, the
+        loop-off reply): a metered, bound port, or a scripted stand-in that says why not."""
+        if self.resolver is None:
+            return resolve_model(self.keys, room, aid)
+        return resolve_model(self.keys, room, aid, resolver=self.resolver)
 
-            if _models.SIWC is None or _models.SIWC.owner != owner:
-                # Someone else's ChatGPT plan is never used on this person's behalf.
-                return ScriptedModel(
-                    note="Your ChatGPT plan is not connected here, so this answer is scripted."
-                )
-        return model_for(cfg.model_provider, key, cfg.model_name)
+    async def resolve(self, room: RoomService, aid: str) -> Resolution:
+        """``Ready(model)`` or ``Unavailable(code, reason, fix_action)``. Never raises. The loop
+        shows an ``Unavailable`` as a notice with its fix action instead of echoing."""
+        resolver = self.resolver or ModelResolver(self.keys)
+        return await resolver.for_principal(room, aid)
 
     # people talk to their agent ------------------------------------------------------------
     async def respond(self, room: RoomService, person: str, text: str) -> str:
+        if self.turn_runner is not None:
+            return str(
+                await self.turn_runner.collect_text(room, person, text, sid=current_session())
+            )
         aid = agent_id(person)
         async with acting(room, aid, "thinking", f"replying to {person}"):
             if room.agent(aid).get("brought") and self.brought is not None:
