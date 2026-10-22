@@ -103,6 +103,9 @@ npm --prefix apps/siwc start
 | `CONSILITH_SIWC_CALLBACK_PROXY_PORT` | `0` (disabled) | Docker callback ingress port; requires a distinct, fixed SDK callback port. |
 | `CONSILITH_SIWC_HOME` | `~/.consilith/siwc` | Absolute path of the token store. Keep it out of the repository. |
 | `CONSILITH_SIWC_MODEL` | first listed model | Model used by `/reply` when the request has no `model`. |
+| `CONSILITH_SIWC_MULTI` | off | `1` turns on one ChatGPT account per person (`/v2/accounts/:key/...`). Off keeps the single-account routes. See `docs/siwc.md`. |
+| `CONSILITH_SIWC_PASTE` | off | `1` (with MULTI) accepts a pasted sign-in address for a browser that is not on the host. |
+| `CONSILITH_SIWC_AUTH_ORIGINS` | `https://auth.openai.com` | Comma-separated https origins the sign-in address may be on, published in `/v2/capabilities`. |
 
 Every request must carry `X-Consilith-Siwc: <secret>`, or it gets 403.
 
