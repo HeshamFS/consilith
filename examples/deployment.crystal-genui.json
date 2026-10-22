@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "project": "consilith",
+  "platform": {
+    "image": "consilith-platform:local",
+    "build": {
+      "packages": ["packages/contracts", "packages/plugin-runtime", "apps/room", "apps/referee"],
+      "requirements": ["consilith-room", "consilith-referee"]
+    }
+  },
+  "plugins": [
+    {
+      "id": "starter",
+      "image": "consilith-agentic-starter:local",
+      "entryPoint": "consilith_agentic_starter:extension",
+      "build": {
+        "packages": ["packages/contracts", "packages/plugin-runtime", "examples/agentic-plugin-template"],
+        "requirements": ["consilith-plugin-runtime", "consilith-agentic-starter"]
+      },
+      "mcpServices": ["solver-starter"]
+    },
+    {
+      "id": "crystal",
+      "image": "consilith-crystal-worker:local",
+      "entryPoint": "crystal_genui.adapter:extension",
+      "build": {
+        "packages": ["packages/contracts", "packages/plugin-runtime", "plugins/crystal-genui"],
+        "requirements": ["consilith-plugin-runtime", "crystal-genui[platform]"]
+      },
+      "mcpServices": ["solver-crystal"]
+    }
+  ],
+  "mcpServices": [
+    {
+      "id": "solver-starter",
+      "image": "consilith-agentic-starter-mcp:local",
+      "url": "http://solver-starter:8080/mcp",
+      "command": ["python", "/app/container.py", "solver"],
+      "environment": {
+        "CONSILITH_SOLVER_MODULE": "consilith_agentic_starter.server",
+        "CONSILITH_MCP_ALLOWED_HOSTS": "[\"solver-starter:8080\", \"localhost:*\", \"127.0.0.1:*\"]"
+      },
+      "build": {
+        "packages": ["packages/contracts", "examples/agentic-plugin-template"],
+        "requirements": ["consilith-agentic-starter"]
+      }
+    },
+    {
+      "id": "solver-crystal",
+      "image": "consilith-crystal-mcp:local",
+      "url": "http://solver-crystal:8080/mcp",
+      "command": ["python", "/app/container.py", "solver"],
+      "environment": {
+        "CONSILITH_SOLVER_MODULE": "crystal_genui.platform_server",
+        "CONSILITH_MCP_ALLOWED_HOSTS": "[\"solver-crystal:8080\", \"localhost:*\", \"127.0.0.1:*\"]",
+        "MPLCONFIGDIR": "/tmp/matplotlib",
+        "OPENBLAS_NUM_THREADS": "2",
+        "OMP_NUM_THREADS": "2"
+      },
+      "build": {
+        "packages": ["packages/contracts", "plugins/crystal-genui"],
+        "requirements": ["crystal-genui[platform]"]
+      }
+    }
+  ]
+}

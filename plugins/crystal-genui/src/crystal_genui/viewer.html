@@ -1,0 +1,865 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crystal Polyhedra</title>
+<style>
+  /* Black stage, white ink. One accent-free palette on purpose: colour is kept for the atoms only. */
+  :root {
+    --bg: #000000; --panel: #000000; --text: #ffffff; --muted: rgba(255,255,255,0.62);
+    --line: rgba(255,255,255,0.28); --strong: #ffffff;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--bg); color: var(--text); }
+  body { margin: 0; font: 13px/1.45 var(--mono); -webkit-font-smoothing: antialiased; }
+  header { padding: 14px 16px 10px; display: flex; flex-wrap: wrap; gap: 4px 18px; align-items: baseline; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 18px; margin: 0; font-weight: 600; letter-spacing: 0.02em; }
+  header .meta { color: var(--muted); }
+  .wrap { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 0; border-bottom: 1px solid var(--line); }
+  @media (max-width: 760px) { .wrap { grid-template-columns: minmax(0, 1fr); } aside { border-left: 0 !important; border-top: 1px solid var(--line); } }
+  .stage { position: relative; min-height: 380px; }
+  canvas { display: block; width: 100%; height: 480px; cursor: grab; touch-action: none; background: #000; }
+  canvas.moving { cursor: move; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 7px 12px; border-top: 1px solid var(--line); font-size: 12px; }
+  .toolbar label { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; }
+  .legend { position: absolute; left: 12px; top: 10px; display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; pointer-events: none; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .readout { position: absolute; right: 12px; top: 452px; font-size: 11px; pointer-events: none; text-align: right; }
+  input.cells[type=number] { width: 44px; padding: 1px 4px; }
+  input[type=range] { width: 90px; padding: 0; border: 0; accent-color: #fff; vertical-align: middle; }
+  .hint { position: absolute; right: 12px; top: 10px; font-size: 11px; color: var(--muted); pointer-events: none; text-align: right; }
+  aside { display: flex; flex-direction: column; min-width: 0; border-left: 1px solid var(--line); }
+  .card { padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  .card:last-child { border-bottom: 0; }
+  .sections .card { border-bottom: 1px solid var(--line); }
+  .card h2 { font-size: 12px; margin: 0 0 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
+  pre.vesta { margin: 0; font: 12px/1.5 var(--mono); white-space: pre-wrap; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+  th, td { padding: 4px 6px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { font-weight: 600; color: var(--muted); }
+  th:first-child, td:first-child { text-align: left; }
+  tbody tr[data-i] { cursor: pointer; }
+  tbody tr[data-i]:hover { background: rgba(255,255,255,0.08); }
+  tbody tr.sel, tbody tr.sel:hover { background: #fff; color: #000; }
+  .tablewrap { max-height: 280px; overflow: auto; }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  select, input, button, textarea { font: inherit; color: var(--text); background: #000; border: 1px solid var(--strong); border-radius: 0; padding: 3px 8px; }
+  input[type=checkbox] { accent-color: #fff; }
+  input[type=number] { width: 72px; }
+  button { cursor: pointer; }
+  button:hover, button.on { background: #fff; color: #000; }
+  button:disabled { opacity: 0.4; cursor: default; background: #000; color: #fff; }
+  .muted { color: var(--muted); }
+  .edited { border: 1px dashed #fff; padding: 1px 6px; margin-left: 6px; font-size: 11px; }
+  .empty { padding: 40px; text-align: center; color: var(--muted); }
+  .grp { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
+  .grp b { font-weight: 600; color: var(--muted); }
+  .sections { display: grid; }
+</style>
+</head>
+<body>
+<div id="app"><div class="empty">Waiting for crystal data…</div></div>
+<script>
+"use strict";
+// ---------------------------------------------------------------- element styling (VESTA-like colours)
+const COLORS = {
+  H:"#ffcccc", Li:"#86df73", B:"#1fa20f", C:"#814929", N:"#b0b9e6", O:"#fe0300", F:"#b0b9e6", Na:"#f9dc3c", Mg:"#fb7b15",
+  Al:"#81b2d6", Si:"#1b3bfa", P:"#c09cc2", S:"#fffa00", Cl:"#31fc02", K:"#a121f6", Ca:"#5a96bd", Sc:"#b563ab", Ti:"#78caff",
+  V:"#e51900", Cr:"#00009e", Mn:"#a8089e", Fe:"#b57100", Co:"#0000af", Ni:"#b7bbbd", Cu:"#2247dc", Zn:"#8f8f81", Ga:"#9ee373",
+  Ge:"#7e6ea6", As:"#74d057", Se:"#9aef0f", Br:"#7e3102", Rb:"#ff0099", Sr:"#00ff27", Y:"#67988e", Zr:"#00ff00", Nb:"#4cb276",
+  Mo:"#b386af", Ru:"#ffffff", Ag:"#bfbfbf", Cd:"#ff0000", In:"#a67573", Sn:"#9a8eb9", Sb:"#d8834a", Te:"#ada251", I:"#8e1f8a",
+  Cs:"#0eff56", Ba:"#1ec628", La:"#5ac449", Ce:"#d1fc06", Nd:"#ffeca4", Gd:"#ffe9c4", Hf:"#b4b3b7", Ta:"#b79ab6", W:"#8d8a7f",
+  Pt:"#cbc4c4", Au:"#fed823", Hg:"#d4cebb", Tl:"#96896d", Pb:"#52535b", Bi:"#d22ff7", U:"#7a7a7a"
+};
+const RADII = { H:.46,Li:1.57,B:.81,C:.77,N:.74,O:.74,F:.72,Na:1.91,Mg:1.6,Al:1.43,Si:1.18,P:1.1,S:1.04,Cl:.99,K:2.35,Ca:1.97,
+  Sc:1.64,Ti:1.47,V:1.35,Cr:1.29,Mn:1.37,Fe:1.26,Co:1.25,Ni:1.25,Cu:1.28,Zn:1.37,Ga:1.53,Ge:1.22,As:1.21,Se:1.04,Br:1.14,
+  Rb:2.5,Sr:2.15,Y:1.82,Zr:1.6,Nb:1.47,Mo:1.4,Ag:1.44,Cd:1.52,In:1.67,Sn:1.58,Sb:1.41,Te:1.37,I:1.33,Cs:2.72,Ba:2.24,La:1.88,
+  Hf:1.59,Ta:1.47,W:1.41,Pt:1.39,Au:1.44,Pb:1.75,Bi:1.82 };
+function colorOf(el) {
+  if (COLORS[el]) return COLORS[el];
+  let h = 0; for (const c of el) h = (h * 31 + c.charCodeAt(0)) % 360;
+  return `hsl(${h} 60% 55%)`;
+}
+function hexToRgb(c) {
+  if (c.startsWith("hsl")) { const d = document.createElement("div"); d.style.color = c; document.body.appendChild(d);
+    const m = getComputedStyle(d).color.match(/\d+/g).map(Number); d.remove(); return m.slice(0, 3); }
+  const n = parseInt(c.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+const rgbCache = {};
+function rgb(el) { return rgbCache[el] || (rgbCache[el] = hexToRgb(colorOf(el))); }
+function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+const WHITE = "#ffffff";
+const fmt = (x, n = 4) => (x === null || x === undefined) ? "–" : Number(x).toFixed(n);
+
+// ---------------------------------------------------------------- vector helpers
+const sub = (a, b) => [a[0]-b[0], a[1]-b[1], a[2]-b[2]];
+const add = (a, b) => [a[0]+b[0], a[1]+b[1], a[2]+b[2]];
+const scale = (a, s) => [a[0]*s, a[1]*s, a[2]*s];
+const dot = (a, b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+const cross = (a, b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+const norm = a => Math.hypot(a[0], a[1], a[2]);
+function matMul(A, B) { return A.map(r => [0,1,2].map(j => r[0]*B[0][j] + r[1]*B[1][j] + r[2]*B[2][j])); }
+function rotX(t) { const c = Math.cos(t), s = Math.sin(t); return [[1,0,0],[0,c,-s],[0,s,c]]; }
+function rotY(t) { const c = Math.cos(t), s = Math.sin(t); return [[c,0,s],[0,1,0],[-s,0,c]]; }
+const apply = (M, v) => [dot(M[0], v), dot(M[1], v), dot(M[2], v)];
+
+// ---------------------------------------------------------------- state
+const S = {
+  report: null, rot: matMul(matMul(rotX(0.3), rotY(-0.55)), rotX(-Math.PI / 2)), zoom: 1, pan: [0, 0],
+  showPoly: {}, showAtoms: true, showCell: true, showLabels: false, showBonds: true, mono: false,
+  selected: null, selCenter: null, hitAtoms: [], hitFaces: [],
+  mode: "rotate",      // "rotate" or "move" (drag atoms)
+  dragIndex: null,     // site index being moved
+  edited: false,       // atoms moved since the last server analysis
+  orig: null,          // report as analysed, for Reset
+  spec: null,          // structure argument for server calls (source id, or CIF text after edits)
+  cells: null,         // unit cells drawn along a, b, c (the 3D grid)
+  atomScale: 0.4,      // drawn sphere radius = Shannon ionic radius × atomScale (1 = touching ions)
+  ionic: {},           // site index → Shannon ionic radius (Å) for its charge and coordination
+};
+
+// Atom size follows the ion: Shannon radius at the site's oxidation state and coordination,
+// falling back to the atomic radius when no ionic radius is tabulated (neutral or unknown charge).
+function atomRadius(a) { return S.ionic[a.index] ?? RADII[a.el] ?? 1.3; }
+function ionicRadii(rep) {
+  const env = Object.fromEntries(rep.site_environments.map(e => [e.site_label, e]));
+  const sites = rep.structure.sites, out = {};
+  for (const s of sites) {
+    const e = env[sites[s.orbit] ? sites[s.orbit].label : s.label] || env[s.label];
+    if (e && e.ionic_radius) out[s.index] = e.ionic_radius;
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- moving atoms
+function inv3(M) {
+  const [a, b, c] = M;
+  const det = dot(a, cross(b, c));
+  const r = [cross(b, c), cross(c, a), cross(a, b)].map(v => scale(v, 1 / det));
+  return [[r[0][0], r[1][0], r[2][0]], [r[0][1], r[1][1], r[2][1]], [r[0][2], r[1][2], r[2][2]]];
+}
+const rowTimes = (v, M) => [0, 1, 2].map(j => v[0] * M[0][j] + v[1] * M[1][j] + v[2] * M[2][j]);
+
+const REGULAR_K = { tetrahedron: 8 / (9 * Math.sqrt(3)), octahedron: 4 / 3, cube: 8 / (3 * Math.sqrt(3)) };
+
+// VESTA's bond-length metrics, recomputed in the browser while an atom is dragged
+function liveMetrics(p) {
+  const m = p.metrics, c = p.center_cart;
+  const L = p.ligands.map(l => (l.distance = norm(sub(l.cart, c))));
+  const n = L.length, lav = L.reduce((x, y) => x + y, 0) / n, lmin = Math.min(...L);
+  const w = L.map(l => Math.exp(1 - (l / lmin) ** 6));
+  const lw = L.reduce((s, l, i) => s + l * w[i], 0) / w.reduce((x, y) => x + y, 0);
+  const cen = scale(p.ligands.reduce((s, l) => add(s, l.cart), [0, 0, 0]), 1 / n);
+  let vol = 0;
+  for (const f of p.faces) {
+    const a = sub(p.ligands[f[0]].cart, cen), b = sub(p.ligands[f[1]].cart, cen), d = sub(p.ligands[f[2]].cart, cen);
+    vol += Math.abs(dot(a, cross(b, d))) / 6;
+  }
+  m.average_bond_length = lav; m.min_bond_length = lmin; m.max_bond_length = Math.max(...L);
+  m.distortion_index = L.reduce((s, l) => s + Math.abs(l - lav), 0) / n / lav;
+  m.weighted_average_bond_length = lw;
+  m.effective_coordination_number = L.reduce((s, l) => s + Math.exp(1 - (l / lw) ** 6), 0);
+  m.polyhedral_volume = p.faces.length ? vol : null;
+  const k = REGULAR_K[m.shape];
+  m.quadratic_elongation = k && vol ? L.reduce((s, l) => s + (l / Math.cbrt(vol / k)) ** 2, 0) / n : null;
+  m.bond_angle_variance = null;   // needs the edge list: re-run analysis
+  m.bond_valence_sum = null;      // needs bond-valence parameters: re-run analysis
+  m.center_offset = norm(sub(c, cen));
+  p.live = true;
+}
+
+function moveSite(index, delta) {
+  const rep = S.report, Linv = inv3(rep.structure.lattice.matrix);
+  const df = rowTimes(delta, Linv);
+  const site = rep.structure.sites[index];
+  site.cart = add(site.cart, delta); site.frac = add(site.frac, df);
+  for (const a of scene.atoms) if (a.index === index) a.cart = add(a.cart, delta);
+  for (const p of rep.polyhedra) {
+    let touched = false;
+    if (p.center_index === index) { p.center_cart = add(p.center_cart, delta); p.center_frac = add(p.center_frac, df); touched = true; }
+    for (const l of p.ligands) if (l.index === index) { l.cart = add(l.cart, delta); touched = true; }
+    if (touched) liveMetrics(p);
+  }
+  S.edited = true;
+}
+
+function editedCif() {
+  const st = S.report.structure, lat = st.lattice;
+  const lines = ["data_" + st.reduced_formula + "_edited", "_symmetry_space_group_name_H-M   'P 1'", "_symmetry_Int_Tables_number   1",
+    `_cell_length_a   ${lat.a}`, `_cell_length_b   ${lat.b}`, `_cell_length_c   ${lat.c}`,
+    `_cell_angle_alpha   ${lat.alpha}`, `_cell_angle_beta   ${lat.beta}`, `_cell_angle_gamma   ${lat.gamma}`,
+    "loop_", "_symmetry_equiv_pos_as_xyz", "  'x, y, z'",
+    "loop_", "_atom_site_label", "_atom_site_type_symbol", "_atom_site_fract_x", "_atom_site_fract_y", "_atom_site_fract_z", "_atom_site_occupancy"];
+  for (const s of st.sites) lines.push(`  ${s.label} ${s.element} ${s.frac.map(x => x.toFixed(6)).join(" ")} ${s.occupancy}`);
+  return lines.join("\n") + "\n";
+}
+
+function saveText(name, text, type) {
+  try {
+    const url = URL.createObjectURL(new Blob([text], { type }));
+    const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    return true;
+  } catch (e) { return false; }
+}
+
+// ---------------------------------------------------------------- MCP Apps bridge (JSON-RPC over postMessage)
+const bridge = (() => {
+  const embedded = window.parent && window.parent !== window;
+  let nextId = 1; const pending = new Map();
+  function send(msg) { if (embedded) window.parent.postMessage(msg, "*"); }
+  function request(method, params) {
+    const id = nextId++;
+    send({ jsonrpc: "2.0", id, method, params });
+    return new Promise((resolve, reject) => {
+      pending.set(id, { resolve, reject });
+      setTimeout(() => { if (pending.has(id)) { pending.delete(id); reject(new Error(method + " timed out")); } }, 60000);
+    });
+  }
+  function notify(method, params) { send({ jsonrpc: "2.0", method, params }); }
+  window.addEventListener("message", (ev) => {
+    const m = ev.data;
+    if (!m || m.jsonrpc !== "2.0") return;
+    if (m.id !== undefined && !m.method && pending.has(m.id)) {
+      const p = pending.get(m.id); pending.delete(m.id);
+      m.error ? p.reject(new Error(m.error.message || "error")) : p.resolve(m.result);
+      return;
+    }
+    if (m.method === "ui/notifications/tool-result") handleToolResult(m.params);
+    else if (m.method === "ui/notifications/host-context-changed") applyHostContext(m.params);
+    else if (m.method && m.id !== undefined) send({ jsonrpc: "2.0", id: m.id, result: {} }); // teardown etc.
+  });
+  async function init() {
+    if (!embedded) return;
+    try {
+      const res = await request("ui/initialize", {
+        protocolVersion: "2026-01-26",
+        appInfo: { name: "crystal-genui-viewer", version: "0.1.0" },
+        appCapabilities: {},
+      });
+      if (res && res.hostContext) applyHostContext(res.hostContext);
+    } catch (e) { /* older hosts: keep going */ }
+    notify("ui/notifications/initialized", {});
+  }
+  return { embedded, request, notify, init };
+})();
+
+function applyHostContext(ctx) { /* the viewer is always black and white, whatever the host theme */ }
+
+function extractReport(result) {
+  if (!result) return null;
+  let data = result.structuredContent;
+  if (!data && Array.isArray(result.content)) {
+    for (const c of result.content) if (c.type === "text") { try { data = JSON.parse(c.text); break; } catch (e) {} }
+  }
+  if (data && data.result && data.result.schema) data = data.result;
+  return data && data.schema && data.schema.startsWith("crystal-genui/polyhedra@") ? data : null;
+}
+function handleToolResult(params) {
+  const r = extractReport(params);
+  if (r) load(r);
+}
+
+// ---------------------------------------------------------------- scene construction
+function defaultCells(rep) {
+  // a roughly equiaxed block of up to 3 cells per axis (short axes repeat more), capped at ~400 atoms
+  const lat = rep.structure.lattice, L = [lat.a, lat.b, lat.c];
+  const target = Math.max(2 * Math.min(...L), Math.max(...L));
+  const n = L.map(x => Math.max(1, Math.min(3, Math.ceil(target / x - 0.25))));
+  while (n[0] * n[1] * n[2] * rep.structure.sites.length > 400 && Math.max(...n) > 1) n[n.indexOf(Math.max(...n))]--;
+  return n;
+}
+
+// The crystal as a 3D grid: every site in every unit cell of an na×nb×nc block, plus its images on the
+// block's outer faces, edges and corners. Polyhedra and bonds are built for every image of their centre.
+function buildScene(rep) {
+  const L = rep.structure.lattice.matrix, N = S.cells || [1, 1, 1];
+  const toCart = f => add(add(scale(L[0], f[0]), scale(L[1], f[1])), scale(L[2], f[2]));
+  const atoms = [], buckets = new Map(), BIN = 0.25;
+  const bin = c => c.map(x => Math.floor(x / BIN));
+  function find(cart, index) {
+    const [i, j, k] = bin(cart);
+    for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) for (let dk = -1; dk <= 1; dk++)
+      for (const a of buckets.get(`${i+di},${j+dj},${k+dk}`) || [])
+        if (a.index === index && norm(sub(a.cart, cart)) < 0.05) return a;
+    return null;
+  }
+  function addAtom(el, label, cart, index, inGrid) {
+    let a = find(cart, index);
+    if (a) { a.inGrid = a.inGrid || inGrid; return a; }
+    a = { id: atoms.length, el, label, cart, index, inGrid, types: new Set() };
+    atoms.push(a);
+    const k = bin(cart).join(",");
+    (buckets.get(k) || buckets.set(k, []).get(k)).push(a);
+    return a;
+  }
+  const eps = 0.02;
+  for (const s of rep.structure.sites) {
+    const f = s.frac.map(x => x - Math.floor(x));
+    const shifts = f.map((x, d) => {
+      const r = [];
+      for (let n = 0; n < N[d]; n++) r.push(n);
+      if (x < eps) r.push(N[d]);        // on the far face of the grid too
+      if (x > 1 - eps) r.unshift(-1);   // ... or on the near face
+      return r;
+    });
+    for (const a of shifts[0]) for (const b of shifts[1]) for (const c of shifts[2])
+      addAtom(s.element, s.label, toCart([f[0]+a, f[1]+b, f[2]+c]), s.index, true);
+  }
+  const gridAtoms = atoms.slice();
+  // polyhedra around every displayed image of their centre; vertices outside the grid show with the polyhedron
+  const polys = [], bonds = new Map();
+  const addBond = (a, b) => { if (a !== b) bonds.set(a.id < b.id ? `${a.id}-${b.id}` : `${b.id}-${a.id}`, [a, b]); };
+  rep.polyhedra.forEach((p, pi) => {
+    const coord = !p.type_id.endsWith("-shell");
+    for (const c of gridAtoms) {
+      if (c.index !== p.center_index) continue;
+      const t = sub(c.cart, p.center_cart);
+      const ligs = p.ligands.map(l => addAtom(l.element, l.label, add(l.cart, t), l.index, false));
+      for (const a of ligs) if (!a.inGrid) a.types.add(p.type_id);
+      polys.push({ pi, center: c, ligands: ligs });
+      if (coord) for (const a of ligs) addBond(c, a);
+    }
+  });
+  const edges = [], outer = (u, nu, v, nv) => (u === 0 || u === nu) && (v === 0 || v === nv);
+  for (let j = 0; j <= N[1]; j++) for (let k = 0; k <= N[2]; k++) edges.push([toCart([0, j, k]), toCart([N[0], j, k]), outer(j, N[1], k, N[2])]);
+  for (let i = 0; i <= N[0]; i++) for (let k = 0; k <= N[2]; k++) edges.push([toCart([i, 0, k]), toCart([i, N[1], k]), outer(i, N[0], k, N[2])]);
+  for (let i = 0; i <= N[0]; i++) for (let j = 0; j <= N[1]; j++) edges.push([toCart([i, j, 0]), toCart([i, j, N[2]]), outer(i, N[0], j, N[1])]);
+  const center = toCart(N.map(n => n / 2));
+  let extent = 0;
+  for (const a of gridAtoms) extent = Math.max(extent, norm(sub(a.cart, center)));
+  for (const [a, b] of edges) extent = Math.max(extent, norm(sub(a, center)), norm(sub(b, center)));
+  return { atoms, polys, bonds: [...bonds.values()], edges, center, extent: extent || 5 };
+}
+
+// The selected polyhedron is drawn in one cell: the one whose centre was clicked, else the analysed position.
+function selectedImage() {
+  if (S.selected === null || !scene) return null;
+  const imgs = scene.polys.filter(g => g.pi === S.selected);
+  const hit = imgs.find(g => g.center === S.selCenter);
+  if (hit) return hit;
+  const c = S.report.polyhedra[S.selected].center_cart;
+  let best = null, bd = Infinity;
+  for (const g of imgs) { const d = norm(sub(g.center.cart, c)); if (d < bd) { bd = d; best = g; } }
+  return best;
+}
+
+// an atom outside the grid is shown only as a vertex of a visible (or the selected) polyhedron
+let selImage = null;
+const atomVisible = a => a.inGrid || [...a.types].some(t => S.showPoly[t]) || (selImage !== null && selImage.ligands.includes(a));
+
+// ---------------------------------------------------------------- rendering
+let canvas, ctx, scene;
+function project(p, W, H) {
+  const v = apply(S.rot, sub(p, scene.center));
+  const s = Math.min(W, H) / (2.3 * scene.extent) * S.zoom;
+  const persp = 1 / (1 - v[2] / (scene.extent * 8));
+  return [W / 2 + S.pan[0] + v[0] * s * persp, H / 2 + S.pan[1] - v[1] * s * persp, v[2], s * persp];
+}
+
+function draw() {
+  if (!canvas || !scene) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+  if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
+    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
+  const rep = S.report;
+  const items = [];
+  const selIdx = S.selected;
+  selImage = selectedImage();
+  const lightDir = [-0.4, 0.5, 0.77];
+
+  for (const g of scene.polys) {
+    const pi = g.pi, p = rep.polyhedra[pi];
+    const isSelG = g === selImage;
+    if (!S.showPoly[p.type_id] && !isSelG) continue;
+    const pts = g.ligands.map(a => project(a.cart, W, H));
+    const c3 = g.center.cart;
+    for (const f of p.faces) {
+      const a = g.ligands[f[0]].cart, b = g.ligands[f[1]].cart, c = g.ligands[f[2]].cart;
+      let n = cross(sub(b, a), sub(c, a));
+      const mid = scale(add(add(a, b), c), 1 / 3);
+      if (dot(n, sub(mid, c3)) < 0) n = scale(n, -1);
+      const nr = apply(S.rot, n); const nl = norm(nr) || 1;
+      // frosted white glass: brightness follows the light, selected polyhedron is brighter
+      const shade = 0.25 + 0.75 * Math.max(0, dot(nr, lightDir) / nl);
+      const alpha = (isSelG ? 0.42 : 0.14) + 0.2 * shade;
+      const poly2 = [pts[f[0]], pts[f[1]], pts[f[2]]];
+      items.push({ z: (poly2[0][2] + poly2[1][2] + poly2[2][2]) / 3, kind: "face", pts: poly2, pi, g, sel: isSelG,
+        fill: `rgba(255,255,255,${alpha.toFixed(3)})`,
+        stroke: isSelG ? "rgba(255,255,255,1)" : "rgba(255,255,255,0.55)" });
+    }
+  }
+  if (S.showBonds) {
+    for (const [a, b] of scene.bonds) {
+      if (!atomVisible(a) || !atomVisible(b)) continue;
+      const pa = project(a.cart, W, H), pb = project(b.cart, W, H);
+      items.push({ z: (pa[2] + pb[2]) / 2 - 0.01, kind: "line", a: pa, b: pb, color: "rgba(255,255,255,0.6)", w: 1.2 });
+    }
+  }
+  if (S.showCell) {
+    // the grid of unit cells: outer box bright, inner cell walls faint
+    for (const [u, v, outer] of scene.edges) {
+      const pu = project(u, W, H), pv = project(v, W, H);
+      items.push({ z: (pu[2] + pv[2]) / 2, kind: "line", a: pu, b: pv, color: outer ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.35)", w: 1 });
+    }
+  }
+  const hitAtoms = [];
+  if (S.showAtoms) {
+    for (const a of scene.atoms) {
+      if (!atomVisible(a)) continue;
+      const p = project(a.cart, W, H);
+      const r = Math.max(2, atomRadius(a) * S.atomScale * p[3]);
+      const isSel = selImage !== null && selImage.center === a;
+      items.push({ z: p[2], kind: "atom", p, r, a, isSel });
+      hitAtoms.push({ p, r, z: p[2], a });
+    }
+  }
+  items.sort((u, v) => u.z - v.z);
+  const hitFaces = [];
+  for (const it of items) {
+    if (it.kind === "face") {
+      ctx.beginPath(); ctx.moveTo(it.pts[0][0], it.pts[0][1]);
+      ctx.lineTo(it.pts[1][0], it.pts[1][1]); ctx.lineTo(it.pts[2][0], it.pts[2][1]); ctx.closePath();
+      ctx.fillStyle = it.fill; ctx.fill();
+      ctx.strokeStyle = it.stroke; ctx.lineWidth = it.sel ? 1.6 : 0.8; ctx.stroke();
+      hitFaces.push(it);
+    } else if (it.kind === "line") {
+      ctx.beginPath(); ctx.moveTo(it.a[0], it.a[1]); ctx.lineTo(it.b[0], it.b[1]);
+      ctx.strokeStyle = it.color; ctx.lineWidth = it.w; ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.arc(it.p[0], it.p[1], it.r, 0, Math.PI * 2);
+      if (S.mono) {
+        ctx.fillStyle = "#000"; ctx.fill();
+        ctx.lineWidth = 1.2; ctx.strokeStyle = WHITE; ctx.stroke();
+        if (it.r > 7) { ctx.fillStyle = WHITE; ctx.font = `${Math.min(13, it.r) | 0}px ui-monospace, monospace`;
+          ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(it.a.el, it.p[0], it.p[1] + 0.5);
+          ctx.textAlign = "start"; ctx.textBaseline = "alphabetic"; }
+      } else {
+        const [r0, g0, b0] = rgb(it.a.el);
+        const g = ctx.createRadialGradient(it.p[0] - it.r * 0.35, it.p[1] - it.r * 0.35, it.r * 0.1, it.p[0], it.p[1], it.r);
+        g.addColorStop(0, `rgb(${Math.min(255, r0 + 90)},${Math.min(255, g0 + 90)},${Math.min(255, b0 + 90)})`);
+        g.addColorStop(1, `rgb(${r0 * 0.6 | 0},${g0 * 0.6 | 0},${b0 * 0.6 | 0})`);
+        ctx.fillStyle = g; ctx.fill();
+        ctx.lineWidth = 0.8; ctx.strokeStyle = "rgba(255,255,255,0.7)"; ctx.stroke();
+      }
+      if (it.isSel || it.a.index === S.dragIndex) { ctx.lineWidth = 2.5; ctx.strokeStyle = WHITE; ctx.setLineDash(it.isSel ? [] : [3, 2]); ctx.stroke(); ctx.setLineDash([]); }
+      if (S.showLabels) {
+        ctx.fillStyle = WHITE; ctx.font = "11px ui-monospace, monospace";
+        ctx.fillText(it.a.label, it.p[0] + it.r + 2, it.p[1] - it.r * 0.4);
+      }
+    }
+  }
+  drawAxes(W, H);
+  S.hitAtoms = hitAtoms; S.hitFaces = hitFaces;
+}
+
+function drawAxes(W, H) {
+  const L = S.report.structure.lattice.matrix;
+  const o = [42, H - 38];
+  const names = ["a", "b", "c"];
+  const ax = L.map((v, i) => ({ v: apply(S.rot, scale(v, 1 / norm(v))), i }));
+  ax.sort((p, q) => p.v[2] - q.v[2]);
+  for (const { v, i } of ax) {
+    const e = [o[0] + v[0] * 26, o[1] - v[1] * 26];
+    ctx.beginPath(); ctx.moveTo(o[0], o[1]); ctx.lineTo(e[0], e[1]);
+    ctx.strokeStyle = WHITE; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = WHITE; ctx.font = "12px ui-monospace, monospace";
+    ctx.fillText(names[i], e[0] + v[0] * 6 - 3, e[1] - v[1] * 6 + 4);
+  }
+}
+
+// ---------------------------------------------------------------- picking
+function atomAt(x, y) {
+  let best = null;
+  for (const h of S.hitAtoms) if ((x - h.p[0]) ** 2 + (y - h.p[1]) ** 2 <= h.r * h.r && (!best || h.z > best.z)) best = h;
+  return best;
+}
+function pick(x, y) {
+  const best = atomAt(x, y);
+  if (best) {
+    const at = S.report.polyhedra.map((p, i) => [p, i]).filter(([p]) => p.center_index === best.a.index);
+    const vis = at.filter(([p]) => S.showPoly[p.type_id]);
+    const coord = at.filter(([p]) => !p.type_id.endsWith("-shell"));
+    const choice = (vis.length ? vis : coord.length ? coord : at)[0];
+    if (choice) { S.selCenter = best.a; return choice[1]; }
+  }
+  let face = null;
+  for (const f of S.hitFaces) if (inTri(x, y, f.pts) && (!face || f.z > face.z)) face = f;
+  if (face) S.selCenter = face.g.center;
+  return face ? face.pi : null;
+}
+function inTri(x, y, t) {
+  const s = (a, b) => (b[0] - a[0]) * (y - a[1]) - (b[1] - a[1]) * (x - a[0]);
+  const d1 = s(t[0], t[1]), d2 = s(t[1], t[2]), d3 = s(t[2], t[0]);
+  return !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0));
+}
+
+// ---------------------------------------------------------------- panels
+function vestaText(p) {
+  const m = p.metrics;
+  const lines = [`${p.center_label} at Wyckoff ${p.center_wyckoff} (${p.center_frac.map(x => fmt(x, 4)).join(", ")})`, ""];
+  lines.push(...p.ligands.map(l => `l(${p.center_label}-${l.label}) = ${fmt(l.distance, 5)} Å`));
+  lines.push("-".repeat(36));
+  lines.push(`Average bond length = ${fmt(m.average_bond_length)} Å`);
+  lines.push(`Polyhedral volume = ${fmt(m.polyhedral_volume)} Å^3`);
+  lines.push(`Distortion index (bond length) = ${fmt(m.distortion_index, 5)}`);
+  if (m.quadratic_elongation !== null) lines.push(`Quadratic elongation = ${fmt(m.quadratic_elongation)}`);
+  if (m.bond_angle_variance !== null) lines.push(`Bond angle variance = ${fmt(m.bond_angle_variance)} deg^2`);
+  lines.push(`Effective coordination number = ${fmt(m.effective_coordination_number)}`);
+  lines.push("");
+  if (m.bond_valence_sum !== null) lines.push(`Bond valence sum = ${fmt(m.bond_valence_sum, 3)} v.u.`);
+  lines.push(`Off-centring = ${fmt(m.center_offset, 4)} Å`);
+  const same = p.connections.filter(c => c.neighbor_type_id === p.type_id);
+  if (same.length) {
+    const cnt = {}; same.forEach(c => cnt[c.sharing] = (cnt[c.sharing] || 0) + 1);
+    lines.push(`Shares with same polyhedra: ` + Object.entries(cnt).map(([k, v]) => `${v} ${k}`).join(", "));
+    const ang = same.filter(c => c.sharing === "corner").flatMap(c => c.bridging_angles);
+    if (ang.length) lines.push(`Bridging angles: ` + [...new Set(ang.map(a => a.toFixed(1)))].join(", ") + "°");
+  }
+  return lines.join("\n");
+}
+
+function select(i) {
+  S.selected = i;
+  const el = document.getElementById("detail");
+  if (el) {
+    if (i === null) el.innerHTML = `<h2>Polyhedron</h2><div class="muted">Click an atom or polyhedron, or a row in the tables.</div>`;
+    else {
+      const p = S.report.polyhedra[i];
+      el.innerHTML = `<h2>${esc(p.type_id)} · CN ${p.metrics.coordination_number} · ${esc(p.metrics.shape)}${p.live ? '<span class="edited">live</span>' : ""}</h2><pre class="vesta"></pre>`;
+      el.querySelector("pre").textContent = vestaText(p);
+    }
+  }
+  document.querySelectorAll("tr[data-i]").forEach(tr => tr.classList.toggle("sel", Number(tr.dataset.i) === i));
+  draw();
+}
+
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+function family(t) {
+  if (t.kind !== "coordination") return "Element shells";
+  const ox = (S.report.settings.oxidation_states || {})[t.center_element];
+  return ox !== undefined && ox < 0 ? "Anion-centred" : "Cation-centred";
+}
+
+function load(rep, opts = {}) {
+  S.report = rep; S.selected = null; S.selCenter = null; S.edited = false; S.dragIndex = null;
+  S.orig = JSON.parse(JSON.stringify(rep));
+  if (opts.spec) S.spec = opts.spec;
+  else if (rep.structure.source.kind !== "cif" && rep.structure.source.id) S.spec = rep.structure.source.id;
+  // polyhedra start hidden so the grid of atoms reads first; the selected one is always drawn
+  const prev = opts.keepView ? S.showPoly : {};
+  S.showPoly = {};
+  rep.polyhedron_types.forEach(t => S.showPoly[t.type_id] = !!prev[t.type_id]);
+  S.ionic = ionicRadii(rep);
+  if (!S.cells || !opts.keepView) S.cells = defaultCells(rep);
+  scene = buildScene(rep);
+  render();
+}
+
+function legendHtml(rep) {
+  // one chip per ion, e.g. "Ti4+ 0.605 Å", with the Shannon radius range over its sites
+  const ions = new Map();
+  for (const e of rep.site_environments) {
+    const ox = e.oxidation_state, sup = n => String(n).replace(/./g, c => "⁰¹²³⁴⁵⁶⁷⁸⁹"[c] ?? c);
+    const k = e.element + (ox ? (Math.abs(ox) === 1 ? "" : sup(Math.abs(ox))) + (ox > 0 ? "⁺" : "⁻") : "");
+    const r = ions.get(k) || { el: e.element, radii: [] };
+    if (e.ionic_radius) r.radii.push(e.ionic_radius);
+    ions.set(k, r);
+  }
+  return [...ions].map(([k, v]) => {
+    const lo = Math.min(...v.radii), hi = Math.max(...v.radii);
+    const r3 = x => String(+x.toFixed(3));
+    const rad = v.radii.length ? (lo === hi ? r3(lo) : `${r3(lo)}–${r3(hi)}`) + " Å" : "(atomic radius)";
+    return `<span class="chip"><span class="dot" style="background:${S.mono ? "#fff" : colorOf(v.el)}"></span>${esc(k)} ${rad}</span>`;
+  }).join("");
+}
+
+function sourceText(st) {
+  if (st.source.kind === "materials_project") return `Materials Project ${st.source.id}`;
+  if (st.source.kind === "optimade") return st.source.note ? `${st.source.id} · ${st.source.note}` : st.source.id;
+  return st.source.id || st.source.kind;
+}
+
+function checksHtml(cc) {
+  const ok = b => b ? "✓" : "✗";
+  const rows = [];
+  for (const r of cc.pauling_rule_1_radius_ratio) rows.push(["Pauling 1", r.site, `r+/r− ${fmt(r.radius_ratio, 3)} → CN ${r.predicted_cn}, observed ${r.observed_cn}`, ok(r.agrees)]);
+  for (const r of cc.pauling_rule_2_electrostatic_valence) rows.push(["Pauling 2", r.site, `Σ z/CN = ${fmt(r.sum_of_electrostatic_bond_strengths, 3)} vs ${r.anion_charge}`, ok(r.satisfied)]);
+  for (const [pair, c] of Object.entries(cc.pauling_rule_3_polyhedron_sharing))
+    rows.push(["Pauling 3", pair, Object.entries(c).filter(([, v]) => v).map(([k, v]) => `${v} ${k}`).join(", ") + " links in cell", ""]);
+  for (const r of cc.pauling_rule_4_high_valence_sharing) rows.push(["Pauling 4", r.pair, `${r.sharing}-sharing at ${fmt(r.cation_distance, 3)} Å`, "⚠"]);
+  rows.push(["Pauling 5", "", Object.entries(cc.pauling_rule_5_parsimony).map(([k, v]) => `${k}: ${v} environment${v > 1 ? "s" : ""}`).join(", "), ""]);
+  for (const r of cc.bond_valence_sums) rows.push(["BVS", r.site, `${fmt(r.bvs, 3)} vs ${r.expected}`, Math.abs(r.deviation) <= 0.2 * r.expected ? "✓" : "⚠"]);
+  if (cc.global_instability_index !== null) rows.push(["GII", "", `${fmt(cc.global_instability_index, 3)} v.u.`, cc.global_instability_index <= 0.2 ? "✓" : "⚠"]);
+  if (cc.bond_count_balance) rows.push(["Bond count", "", `cations ${cc.bond_count_balance.cation_side}, anions ${cc.bond_count_balance.anion_side}`, ok(cc.bond_count_balance.balanced)]);
+  rows.push(["Site symmetry", "", "every polyhedron invariant under its site group", ok(cc.site_symmetry_consistent)]);
+  return `<table><tbody>${rows.map(r => `<tr><td>${r[0]}</td><td style="text-align:left">${esc(r[1])}</td><td style="text-align:left;white-space:normal">${esc(r[2])}</td><td>${r[3]}</td></tr>`).join("")}</tbody></table>`;
+}
+
+function render(keep = false) {
+  const rep = S.report, st = rep.structure;
+  const prevSel = S.selected;
+  const fams = {};
+  rep.polyhedron_types.forEach(t => (fams[family(t)] = fams[family(t)] || []).push(t));
+  const firstOf = {};
+  rep.polyhedra.forEach((p, i) => { if (!(p.type_id in firstOf)) firstOf[p.type_id] = i; });
+  const app = document.getElementById("app");
+  app.innerHTML = `
+  <header>
+    <h1>${esc(st.reduced_formula)}</h1>
+    <span class="meta">${esc(st.space_group.symbol)} (#${st.space_group.number}) · ${esc(st.space_group.crystal_system)}</span>
+    <span class="meta">a=${fmt(st.lattice.a,3)} b=${fmt(st.lattice.b,3)} c=${fmt(st.lattice.c,3)} Å · α=${fmt(st.lattice.alpha,2)} β=${fmt(st.lattice.beta,2)} γ=${fmt(st.lattice.gamma,2)}°</span>
+    <span class="meta">${esc(sourceText(st))}</span>
+  </header>
+  <div class="wrap">
+    <div class="stage">
+      <canvas id="cv" class="${S.mode === "move" ? "moving" : ""}" aria-label="3D crystal structure with coordination polyhedra"></canvas>
+      <div class="legend">${legendHtml(rep)}</div>
+      <div class="readout" id="readout"></div>
+      <div class="hint">${S.mode === "move" ? "drag an atom to move it (Alt for fine steps) · drag empty space to rotate" : "drag to rotate · shift-drag to pan · scroll to zoom"}<br>sphere size = Shannon ionic radius × ${S.atomScale.toFixed(2)}</div>
+      <div class="toolbar">
+        ${Object.entries(fams).map(([f, ts]) => `<span class="grp"><b>${f}</b> ${ts.map(t => `<label><input type="checkbox" data-poly="${esc(t.type_id)}" ${S.showPoly[t.type_id] ? "checked" : ""}>${esc(t.center_label)} ${esc(t.wyckoff)} ${esc(t.ligand_formula)}</label>`).join("")}</span>`).join("")}
+      </div>
+      <div class="toolbar">
+        <label><input type="checkbox" id="tAtoms" ${S.showAtoms ? "checked" : ""}>atoms</label>
+        <label><input type="checkbox" id="tBonds" ${S.showBonds ? "checked" : ""}>bonds</label>
+        <label><input type="checkbox" id="tCell" ${S.showCell ? "checked" : ""}>grid</label>
+        <span class="grp">cells ${["a", "b", "c"].map((ax, d) => `<input type="number" class="cells" data-d="${d}" min="1" max="5" step="1" value="${S.cells[d]}" title="unit cells along ${ax}" aria-label="unit cells along ${ax}">`).join("×")}</span>
+        <label>size <input type="range" id="tSize" min="0.2" max="1" step="0.05" value="${S.atomScale}" title="sphere radius as a fraction of the Shannon ionic radius; 1 = ions in contact"></label>
+        <label><input type="checkbox" id="tLabels" ${S.showLabels ? "checked" : ""}>labels</label>
+        <label><input type="checkbox" id="tMono" ${S.mono ? "checked" : ""}>white atoms</label>
+      </div>
+    </div>
+    <aside>
+      <div class="card" id="detail"></div>
+      <div class="card">
+        <h2>Move atoms${S.edited ? '<span class="edited">edited</span>' : ""}</h2>
+        <div class="row">
+          <button id="eMove" class="${S.mode === "move" ? "on" : ""}">${S.mode === "move" ? "Moving atoms: on" : "Move atoms"}</button>
+          <button id="eReset" ${S.edited ? "" : "disabled"}>Reset</button>
+          <button id="eCif">Export CIF</button>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <button id="eRun" ${S.edited && bridge.embedded ? "" : "disabled"}>Re-run full analysis</button>
+        </div>
+        <div class="muted" id="eMsg" style="margin-top:6px">${S.edited
+          ? (bridge.embedded ? "Bond lengths, volume, distortion index and ECoN update live. Re-run to redo coordination, symmetry, bond valence and Pauling checks on the edited structure."
+                             : "Bond lengths, volume, distortion index and ECoN update live. For the full analysis, export the CIF and run: crystal-genui edited.cif")
+          : "Turn on, then drag any atom. Every periodic image of that site moves with it."}</div>
+      </div>
+      <div class="card">
+        <h2>Download tables (CSV)</h2>
+        <div class="row">${["polyhedra", "types", "sites", "bonds"].map(t => `<button data-csv="${t}">${t}</button>`).join("")}</div>
+        <div class="muted" id="csvMsg" style="margin-top:4px"></div>
+        <textarea id="csvBox" readonly style="display:none;width:100%;height:120px;margin-top:6px;font:11px ui-monospace,monospace"></textarea>
+      </div>
+      ${bridge.embedded && S.spec ? `
+      <div class="card">
+        <h2>Recompute</h2>
+        <div class="row">
+          <select id="rMethod">${["shannon", "crystalnn", "cutoff"].map(m => `<option ${m === rep.settings.method ? "selected" : ""}>${m}</option>`).join("")}</select>
+          <input id="rTol" type="number" step="0.01" min="0" max="0.5" title="Shannon tolerance" value="${rep.settings.radius_tolerance ?? 0.15}">
+          <input id="rMax" type="number" step="0.05" min="0.5" placeholder="max Å" value="${rep.settings.max_bond ?? ""}">
+        </div>
+        <div class="row" style="margin-top:6px">
+          <label><input type="checkbox" id="rShells" ${rep.settings.include_element_shells ? "checked" : ""}>element shells</label>
+          <button id="rGo">Run</button>
+        </div>
+        <div class="muted" id="rMsg"></div>
+      </div>` : ""}
+    </aside>
+  </div>
+  <div class="sections">
+    ${S.edited ? `<div class="card"><span class="edited">edited</span> Sections 1–3 describe the structure before your edits; the table of all polyhedra shows live values. ${bridge.embedded ? "Use Re-run full analysis to update everything." : "Export the CIF and run crystal-genui on it to update everything."}</div>` : ""}
+    <div class="card">
+      <h2>1. Coordination environment of each Wyckoff site <span class="muted">(${esc(rep.settings.method)}${rep.settings.method === "shannon" ? `, tolerance ${rep.settings.radius_tolerance}` : ""})</span></h2>
+      ${rep.settings.notes.length ? `<div class="muted">${rep.settings.notes.map(esc).join("<br>")}</div>` : ""}
+      <div class="tablewrap"><table><thead><tr><th>Site</th><th>Wyckoff</th><th>Site sym.</th><th>Ox.</th><th>x, y, z</th><th>CN</th><th>Ligands</th><th>Shape</th><th>Shannon CN</th><th>r+/r−</th><th>Polyhedron?</th></tr></thead>
+      <tbody>${rep.site_environments.map(e => `<tr ${e.type_ids.length && e.type_ids[0] in firstOf ? `data-i="${firstOf[e.type_ids[0]]}"` : ""}><td>${esc(e.site_label)}</td><td>${esc(e.wyckoff)}</td><td>${esc(e.site_symmetry)}</td><td>${e.oxidation_state === null ? "" : (e.oxidation_state > 0 ? "+" : "") + e.oxidation_state}</td><td>${e.representative_frac.map(x => fmt(x, 4)).join(", ")}</td><td>${e.coordination_number}</td><td>${esc(e.ligand_formula)}</td><td style="text-align:left">${esc(e.shape)}</td><td>${e.shannon ? e.shannon.shannon_cn + (e.shannon.shannon_consistent ? "" : "*") : ""}</td><td>${e.shannon ? fmt(e.shannon.radius_ratio, 3) : ""}</td><td style="text-align:left">${e.forms_polyhedron ? "yes" : "no: " + esc(e.reason)}</td></tr>`).join("")}</tbody></table></div>
+    </div>
+    <div class="card">
+      <h2>2. Analyses of every distinct polyhedron</h2>
+      <div class="tablewrap"><table><thead><tr><th>Polyhedron</th><th>Wyckoff</th><th>n</th><th>CN</th><th>Shape</th><th>⟨l⟩ Å</th><th>V Å³</th><th>Dist. index</th><th>ECoN</th><th>⟨λ⟩</th><th>σ² deg²</th><th>BVS</th><th>Off-centre Å</th><th>Shared per polyhedron</th><th>Bridging °</th></tr></thead>
+      <tbody>${rep.polyhedron_types.map(t => { const m = t.metrics; return `<tr data-i="${firstOf[t.type_id]}"><td>${esc(t.type_id)}</td><td>${esc(t.wyckoff)}</td><td>${t.n_instances}</td><td>${m.coordination_number}</td><td style="text-align:left">${esc(m.shape)}</td><td>${fmt(m.average_bond_length)}</td><td>${fmt(m.polyhedral_volume)}</td><td>${fmt(m.distortion_index,5)}</td><td>${fmt(m.effective_coordination_number)}</td><td>${fmt(m.quadratic_elongation)}</td><td>${fmt(m.bond_angle_variance,2)}</td><td>${fmt(m.bond_valence_sum,3)}</td><td>${fmt(m.center_offset,3)}</td><td>${Object.entries(t.connectivity).map(([k, v]) => `${v} ${k}`).join(", ")}</td><td>${fmt(t.mean_bridging_angle,1)}</td></tr>`; }).join("")}</tbody></table></div>
+    </div>
+    <div class="card">
+      <h2>3. Crystal-chemical checks</h2>
+      ${checksHtml(rep.crystal_chemistry)}
+    </div>
+    <div class="card">
+      <h2>All ${rep.polyhedra.length} polyhedra in the cell</h2>
+      <div class="tablewrap"><table><thead><tr><th>Centre</th><th>Polyhedron</th><th>Wyckoff</th><th>x, y, z</th><th>CN</th><th>⟨l⟩ Å</th><th>V Å³</th><th>Dist. index</th><th>ECoN</th><th>BVS</th></tr></thead>
+      <tbody>${rep.polyhedra.map((p, i) => { const m = p.metrics; return `<tr data-i="${i}"><td>${esc(p.center_label)}</td><td>${esc(p.type_id)}</td><td>${esc(p.center_wyckoff)}</td><td>${p.center_frac.map(x => fmt(x, 4)).join(", ")}</td><td>${m.coordination_number}</td><td>${fmt(m.average_bond_length)}</td><td>${fmt(m.polyhedral_volume)}</td><td>${fmt(m.distortion_index,5)}</td><td>${fmt(m.effective_coordination_number)}</td><td>${fmt(m.bond_valence_sum,3)}</td></tr>`; }).join("")}</tbody></table></div>
+    </div>
+  </div>`;
+  canvas = document.getElementById("cv"); ctx = canvas.getContext("2d");
+  wireEvents();
+  // open on the first small cation polyhedron (CN ≤ 6), as VESTA would, drawn in its own cell
+  const fam = i => family(rep.polyhedron_types.find(t => t.type_id === rep.polyhedra[i].type_id));
+  const idx = rep.polyhedra.map((p, i) => i);
+  const first = [...idx.filter(i => fam(i) === "Cation-centred" && rep.polyhedra[i].metrics.coordination_number <= 6),
+                 ...idx.filter(i => fam(i) === "Cation-centred"), ...idx][0];
+  if (!keep) S.selCenter = null;
+  select(keep ? prevSel : (first ?? null));
+  reportSize();
+}
+
+function saveCsv(name, text) {
+  const msg = document.getElementById("csvMsg"), box = document.getElementById("csvBox");
+  try {
+    const url = URL.createObjectURL(new Blob([text], { type: "text/csv" }));
+    const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    msg.textContent = `${name}: ${text.trim().split("\n").length - 1} rows. If no download started, copy it from the box below.`;
+  } catch (e) { msg.textContent = `${name}: copy it from the box below.`; }
+  box.style.display = "block"; box.value = text; reportSize();
+}
+
+async function downloadCsv(table) {
+  const msg = document.getElementById("csvMsg");
+  const name = `${S.report.structure.reduced_formula}_${table}.csv`;
+  const local = !S.edited && !(S.spec || "").includes("_cell_length_a") && window.__CRYSTAL_GENUI_CSV__ && window.__CRYSTAL_GENUI_CSV__[table];
+  if (local) return saveCsv(name, local);
+  if (!bridge.embedded || !S.spec) {
+    msg.textContent = S.edited ? "Export the CIF and run: crystal-genui edited.cif --format csv --table all -o edited" : "Run `crystal-genui <structure> --format csv` to get this table.";
+    return;
+  }
+  if (S.edited) { msg.textContent = "Re-run the full analysis first, so the table matches the edited structure."; return; }
+  const st = S.report.settings;
+  msg.textContent = "Preparing…";
+  try {
+    const args = { structure: S.spec, table, method: st.method, include_element_shells: st.include_element_shells };
+    if (st.max_bond) args.max_bond = st.max_bond;
+    if (st.radius_tolerance !== null) args.radius_tolerance = st.radius_tolerance;
+    const res = await bridge.request("tools/call", { name: "export_polyhedra_csv", arguments: args });
+    const r = (res.content || []).find(c => c.type === "resource");
+    if (!r) throw new Error("no CSV returned");
+    saveCsv(name, r.resource.text);
+  } catch (err) { msg.textContent = "Could not get the CSV from the server: " + err.message; }
+}
+
+function showReadout(hit) {
+  const el = document.getElementById("readout");
+  if (!el) return;
+  if (!hit) { el.textContent = ""; return; }
+  const a = hit.a, rep = S.report, site = rep.structure.sites[a.index];
+  const f = rowTimes(a.cart, inv3(rep.structure.lattice.matrix));
+  const cell = f.map(x => Math.floor(x + 1e-6)), inCell = f.map((x, d) => x - cell[d]);
+  const r = S.ionic[a.index];
+  el.textContent = `${a.label} · ${site.wyckoff} · x, y, z = ${inCell.map(x => fmt(x, 4)).join(", ")} · cell [${cell.join(" ")}]` +
+    (r ? ` · r = ${fmt(r, 3)} Å` : "") + (a.inGrid ? "" : " · polyhedron vertex outside the grid");
+}
+
+function wireEvents() {
+  document.querySelectorAll("[data-poly]").forEach(cb => cb.onchange = () => { S.showPoly[cb.dataset.poly] = cb.checked; draw(); });
+  const t = (id, k) => { const e = document.getElementById(id); e.onchange = () => { S[k] = e.checked; draw(); }; };
+  t("tAtoms", "showAtoms"); t("tBonds", "showBonds"); t("tCell", "showCell"); t("tLabels", "showLabels");
+  document.querySelectorAll("tr[data-i]").forEach(tr => tr.onclick = () => {
+    S.selCenter = null;
+    select(Number(tr.dataset.i));
+  });
+  document.querySelectorAll("[data-csv]").forEach(b => b.onclick = () => downloadCsv(b.dataset.csv));
+  const tm = document.getElementById("tMono");
+  tm.onchange = () => { S.mono = tm.checked; render(true); };
+  document.querySelectorAll("input.cells").forEach(inp => inp.onchange = () => {
+    const n = Math.max(1, Math.min(5, Math.round(Number(inp.value)) || 1));
+    inp.value = n; S.cells[Number(inp.dataset.d)] = n;
+    scene = buildScene(S.report); draw();
+  });
+  const ts = document.getElementById("tSize");
+  ts.oninput = () => { S.atomScale = Number(ts.value); document.querySelector(".hint").lastChild.textContent = `sphere size = Shannon ionic radius × ${S.atomScale.toFixed(2)}`; draw(); };
+  let drag = null, moved = false;
+  const local = e => { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  canvas.onpointerdown = e => {
+    drag = { x: e.clientX, y: e.clientY, pan: e.shiftKey, atom: null };
+    if (S.mode === "move") {
+      const [x, y] = local(e);
+      const hit = atomAt(x, y);
+      if (hit) { drag.atom = hit; S.dragIndex = hit.a.index; }
+    }
+    moved = false; canvas.setPointerCapture(e.pointerId);
+  };
+  canvas.onpointermove = e => {
+    if (!drag) { const [x, y] = local(e); showReadout(atomAt(x, y)); return; }
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (Math.abs(dx) + Math.abs(dy) > 2) moved = true;
+    if (drag.atom) {
+      // screen-plane displacement → Cartesian displacement (rotation is orthonormal: inverse = transpose)
+      const sc = drag.atom.p[3] * (e.altKey ? 5 : 1);   // hold Alt/Option for fine steps
+      const v = [dx / sc, -dy / sc, 0];
+      const Rt = [[S.rot[0][0], S.rot[1][0], S.rot[2][0]], [S.rot[0][1], S.rot[1][1], S.rot[2][1]], [S.rot[0][2], S.rot[1][2], S.rot[2][2]]];
+      moveSite(drag.atom.a.index, apply(Rt, v));
+      showReadout(drag.atom);
+      if (S.selected !== null) select(S.selected); else draw();
+    } else if (drag.pan) { S.pan = [S.pan[0] + dx, S.pan[1] + dy]; draw(); }
+    else { S.rot = matMul(matMul(rotY(dx * 0.01), rotX(dy * 0.01)), S.rot); draw(); }
+    drag.x = e.clientX; drag.y = e.clientY;
+  };
+  canvas.onpointerleave = () => { if (!drag) showReadout(null); };
+  canvas.onpointerup = e => {
+    const wasAtom = drag && drag.atom;
+    if (!moved) { const [x, y] = local(e); const i = pick(x, y); if (i !== null) select(i); }
+    drag = null; S.dragIndex = null;
+    if (wasAtom && moved) render(true); else draw();
+  };
+  const eMove = document.getElementById("eMove");
+  eMove.onclick = () => { S.mode = S.mode === "move" ? "rotate" : "move"; render(true); };
+  document.getElementById("eReset").onclick = () => { const o = S.orig; load(JSON.parse(JSON.stringify(o)), { spec: S.spec, keepView: true }); };
+  document.getElementById("eCif").onclick = () => {
+    const name = `${S.report.structure.reduced_formula}${S.edited ? "_edited" : ""}.cif`;
+    const msg = document.getElementById("eMsg");
+    msg.textContent = saveText(name, editedCif(), "chemical/x-cif") ? `Saved ${name} (P1 cell, all sites).` : "Download blocked by the host.";
+  };
+  const eRun = document.getElementById("eRun");
+  eRun.onclick = async () => {
+    const msg = document.getElementById("eMsg");
+    const st = S.report.settings, cif = editedCif();
+    const args = { structure: cif, method: st.method, include_element_shells: st.include_element_shells };
+    if (st.max_bond) args.max_bond = st.max_bond;
+    if (st.radius_tolerance !== null) args.radius_tolerance = st.radius_tolerance;
+    msg.textContent = "Re-running the analysis on the edited structure…";
+    try {
+      const res = await bridge.request("tools/call", { name: "analyze_polyhedra", arguments: args });
+      const r = extractReport(res);
+      if (r) load(r, { spec: cif, keepView: true }); else msg.textContent = "No polyhedra returned.";
+    } catch (err) { msg.textContent = "Host refused the call: " + err.message; }
+  };
+  canvas.onwheel = e => { e.preventDefault(); S.zoom *= Math.exp(-e.deltaY * 0.0015); S.zoom = Math.min(8, Math.max(0.2, S.zoom)); draw(); };
+  const go = document.getElementById("rGo");
+  if (go) go.onclick = async () => {
+    const msg = document.getElementById("rMsg");
+    const method = document.getElementById("rMethod").value;
+    const maxv = parseFloat(document.getElementById("rMax").value);
+    const tol = parseFloat(document.getElementById("rTol").value);
+    const args = { structure: S.spec, method, include_element_shells: document.getElementById("rShells").checked };
+    if (method === "cutoff") { if (!(maxv > 0)) { msg.textContent = "cutoff needs a max bond length"; return; } args.max_bond = maxv; }
+    if (method === "shannon" && tol >= 0) args.radius_tolerance = tol;
+    msg.textContent = "Running…";
+    try {
+      const res = await bridge.request("tools/call", { name: "analyze_polyhedra", arguments: args });
+      const r = extractReport(res);
+      if (r) load(r, { keepView: true }); else msg.textContent = "No polyhedra returned.";
+    } catch (err) { msg.textContent = "Host refused the call: " + err.message; }
+  };
+}
+
+function reportSize() {
+  if (!bridge.embedded) return;
+  const h = document.documentElement.scrollHeight;
+  bridge.notify("ui/notifications/size-changed", { height: h });
+}
+window.addEventListener("resize", () => { draw(); reportSize(); });
+
+bridge.init();
+if (window.__CRYSTAL_GENUI_DATA__) load(window.__CRYSTAL_GENUI_DATA__);
+</script>
+</body>
+</html>

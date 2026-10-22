@@ -1,0 +1,257 @@
+{
+  "$defs": {
+    "LatticeRecord": {
+      "properties": {
+        "a": {
+          "title": "A",
+          "type": "number"
+        },
+        "b": {
+          "title": "B",
+          "type": "number"
+        },
+        "c": {
+          "title": "C",
+          "type": "number"
+        },
+        "alpha": {
+          "title": "Alpha",
+          "type": "number"
+        },
+        "beta": {
+          "title": "Beta",
+          "type": "number"
+        },
+        "gamma": {
+          "title": "Gamma",
+          "type": "number"
+        },
+        "volume": {
+          "description": "Cell volume, \u00c5^3",
+          "title": "Volume",
+          "type": "number"
+        },
+        "matrix": {
+          "description": "Row vectors a, b, c in Cartesian \u00c5",
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Matrix",
+          "type": "array"
+        }
+      },
+      "required": [
+        "a",
+        "b",
+        "c",
+        "alpha",
+        "beta",
+        "gamma",
+        "volume",
+        "matrix"
+      ],
+      "title": "LatticeRecord",
+      "type": "object"
+    },
+    "Site": {
+      "properties": {
+        "index": {
+          "title": "Index",
+          "type": "integer"
+        },
+        "label": {
+          "description": "Element + running number per element, 1-based (VESTA style, e.g. Bi7)",
+          "title": "Label",
+          "type": "string"
+        },
+        "element": {
+          "title": "Element",
+          "type": "string"
+        },
+        "occupancy": {
+          "default": 1.0,
+          "title": "Occupancy",
+          "type": "number"
+        },
+        "frac": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Frac",
+          "type": "array"
+        },
+        "cart": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Cart",
+          "type": "array"
+        },
+        "wyckoff": {
+          "description": "Multiplicity + Wyckoff letter in the conventional cell, e.g. 4b",
+          "title": "Wyckoff",
+          "type": "string"
+        },
+        "site_symmetry": {
+          "description": "Oriented site-symmetry symbol (spglib), e.g. m-3m, .m.",
+          "title": "Site Symmetry",
+          "type": "string"
+        },
+        "orbit": {
+          "description": "Index of the first site symmetry-equivalent to this one",
+          "title": "Orbit",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "index",
+        "label",
+        "element",
+        "frac",
+        "cart",
+        "wyckoff",
+        "site_symmetry",
+        "orbit"
+      ],
+      "title": "Site",
+      "type": "object"
+    },
+    "Source": {
+      "properties": {
+        "kind": {
+          "enum": [
+            "materials_project",
+            "optimade",
+            "example",
+            "cif"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Materials Project id, optimade:<provider>:<id>, example name, or file name",
+          "title": "Id"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "retrieved_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ISO-8601 UTC time of retrieval",
+          "title": "Retrieved At"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "Source",
+      "type": "object"
+    },
+    "SpaceGroup": {
+      "properties": {
+        "symbol": {
+          "title": "Symbol",
+          "type": "string"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "crystal_system": {
+          "title": "Crystal System",
+          "type": "string"
+        }
+      },
+      "required": [
+        "symbol",
+        "number",
+        "crystal_system"
+      ],
+      "title": "SpaceGroup",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "schema": {
+      "const": "crystal-genui/structure@1",
+      "default": "crystal-genui/structure@1",
+      "title": "Schema",
+      "type": "string"
+    },
+    "source": {
+      "$ref": "#/$defs/Source"
+    },
+    "formula": {
+      "title": "Formula",
+      "type": "string"
+    },
+    "reduced_formula": {
+      "title": "Reduced Formula",
+      "type": "string"
+    },
+    "n_sites": {
+      "title": "N Sites",
+      "type": "integer"
+    },
+    "density": {
+      "description": "g/cm^3",
+      "title": "Density",
+      "type": "number"
+    },
+    "lattice": {
+      "$ref": "#/$defs/LatticeRecord"
+    },
+    "space_group": {
+      "$ref": "#/$defs/SpaceGroup"
+    },
+    "sites": {
+      "items": {
+        "$ref": "#/$defs/Site"
+      },
+      "title": "Sites",
+      "type": "array"
+    }
+  },
+  "required": [
+    "source",
+    "formula",
+    "reduced_formula",
+    "n_sites",
+    "density",
+    "lattice",
+    "space_group",
+    "sites"
+  ],
+  "title": "StructureRecord",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

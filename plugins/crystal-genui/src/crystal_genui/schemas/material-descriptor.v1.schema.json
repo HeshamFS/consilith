@@ -1,0 +1,536 @@
+{
+  "$defs": {
+    "ElasticData": {
+      "properties": {
+        "bulk_modulus_vrh": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "GPa",
+          "title": "Bulk Modulus Vrh"
+        },
+        "shear_modulus_vrh": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "GPa",
+          "title": "Shear Modulus Vrh"
+        },
+        "elastic_tensor_voigt": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "6x6 C_ij, GPa, IEEE convention",
+          "title": "Elastic Tensor Voigt"
+        }
+      },
+      "title": "ElasticData",
+      "type": "object"
+    },
+    "LatticeRecord": {
+      "properties": {
+        "a": {
+          "title": "A",
+          "type": "number"
+        },
+        "b": {
+          "title": "B",
+          "type": "number"
+        },
+        "c": {
+          "title": "C",
+          "type": "number"
+        },
+        "alpha": {
+          "title": "Alpha",
+          "type": "number"
+        },
+        "beta": {
+          "title": "Beta",
+          "type": "number"
+        },
+        "gamma": {
+          "title": "Gamma",
+          "type": "number"
+        },
+        "volume": {
+          "description": "Cell volume, \u00c5^3",
+          "title": "Volume",
+          "type": "number"
+        },
+        "matrix": {
+          "description": "Row vectors a, b, c in Cartesian \u00c5",
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Matrix",
+          "type": "array"
+        }
+      },
+      "required": [
+        "a",
+        "b",
+        "c",
+        "alpha",
+        "beta",
+        "gamma",
+        "volume",
+        "matrix"
+      ],
+      "title": "LatticeRecord",
+      "type": "object"
+    },
+    "PolyhedronMetrics": {
+      "properties": {
+        "coordination_number": {
+          "title": "Coordination Number",
+          "type": "integer"
+        },
+        "shape": {
+          "description": "Identified from vertex count and face polygons of the hull",
+          "title": "Shape",
+          "type": "string"
+        },
+        "face_sizes": {
+          "description": "Number of vertices of each (merged) hull face",
+          "items": {
+            "type": "integer"
+          },
+          "title": "Face Sizes",
+          "type": "array"
+        },
+        "average_bond_length": {
+          "description": "VESTA 'Average bond length', \u00c5",
+          "title": "Average Bond Length",
+          "type": "number"
+        },
+        "min_bond_length": {
+          "title": "Min Bond Length",
+          "type": "number"
+        },
+        "max_bond_length": {
+          "title": "Max Bond Length",
+          "type": "number"
+        },
+        "polyhedral_volume": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "VESTA 'Polyhedral volume' (convex hull), \u00c5^3",
+          "title": "Polyhedral Volume"
+        },
+        "distortion_index": {
+          "description": "VESTA 'Distortion index (bond length)', Baur 1974",
+          "title": "Distortion Index",
+          "type": "number"
+        },
+        "effective_coordination_number": {
+          "description": "VESTA 'Effective coordination number', Hoppe 1979",
+          "title": "Effective Coordination Number",
+          "type": "number"
+        },
+        "weighted_average_bond_length": {
+          "description": "Hoppe-weighted mean bond length used for ECoN, \u00c5",
+          "title": "Weighted Average Bond Length",
+          "type": "number"
+        },
+        "quadratic_elongation": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Robinson 1971; tetrahedra, octahedra, cubes",
+          "title": "Quadratic Elongation"
+        },
+        "bond_angle_variance": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Robinson 1971, deg^2; tetrahedra, octahedra, cubes",
+          "title": "Bond Angle Variance"
+        },
+        "bond_valence_sum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Brown bond-valence sum, Brese & O'Keeffe 1991 R0, b=0.37 \u00c5",
+          "title": "Bond Valence Sum"
+        },
+        "center_offset": {
+          "description": "Distance of the centre from the ligand centroid, \u00c5",
+          "title": "Center Offset",
+          "type": "number"
+        }
+      },
+      "required": [
+        "coordination_number",
+        "shape",
+        "face_sizes",
+        "average_bond_length",
+        "min_bond_length",
+        "max_bond_length",
+        "polyhedral_volume",
+        "distortion_index",
+        "effective_coordination_number",
+        "weighted_average_bond_length",
+        "quadratic_elongation",
+        "bond_angle_variance",
+        "bond_valence_sum",
+        "center_offset"
+      ],
+      "title": "PolyhedronMetrics",
+      "type": "object"
+    },
+    "PolyhedronTypeRecord": {
+      "description": "One symmetry-distinct polyhedron; all its instances have identical metrics.",
+      "properties": {
+        "type_id": {
+          "title": "Type Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "coordination",
+            "element_shell"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "center_label": {
+          "title": "Center Label",
+          "type": "string"
+        },
+        "center_element": {
+          "title": "Center Element",
+          "type": "string"
+        },
+        "wyckoff": {
+          "title": "Wyckoff",
+          "type": "string"
+        },
+        "site_symmetry": {
+          "title": "Site Symmetry",
+          "type": "string"
+        },
+        "ligand_formula": {
+          "title": "Ligand Formula",
+          "type": "string"
+        },
+        "n_instances": {
+          "title": "N Instances",
+          "type": "integer"
+        },
+        "metrics": {
+          "$ref": "#/$defs/PolyhedronMetrics"
+        },
+        "connectivity": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Average number of corner/edge/face links per polyhedron to polyhedra of the same type",
+          "title": "Connectivity",
+          "type": "object"
+        },
+        "mean_bridging_angle": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Mean centre\u2013ligand\u2013centre angle over corner-sharing links within the family, degrees",
+          "title": "Mean Bridging Angle"
+        }
+      },
+      "required": [
+        "type_id",
+        "kind",
+        "center_label",
+        "center_element",
+        "wyckoff",
+        "site_symmetry",
+        "ligand_formula",
+        "n_instances",
+        "metrics",
+        "connectivity",
+        "mean_bridging_angle"
+      ],
+      "title": "PolyhedronTypeRecord",
+      "type": "object"
+    },
+    "Source": {
+      "properties": {
+        "kind": {
+          "enum": [
+            "materials_project",
+            "optimade",
+            "example",
+            "cif"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Materials Project id, optimade:<provider>:<id>, example name, or file name",
+          "title": "Id"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "retrieved_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ISO-8601 UTC time of retrieval",
+          "title": "Retrieved At"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "Source",
+      "type": "object"
+    },
+    "SpaceGroup": {
+      "properties": {
+        "symbol": {
+          "title": "Symbol",
+          "type": "string"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "crystal_system": {
+          "title": "Crystal System",
+          "type": "string"
+        }
+      },
+      "required": [
+        "symbol",
+        "number",
+        "crystal_system"
+      ],
+      "title": "SpaceGroup",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "schema": {
+      "const": "crystal-genui/material-descriptor@1",
+      "default": "crystal-genui/material-descriptor@1",
+      "title": "Schema",
+      "type": "string"
+    },
+    "source": {
+      "$ref": "#/$defs/Source"
+    },
+    "formula": {
+      "title": "Formula",
+      "type": "string"
+    },
+    "composition": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "description": "Atomic fractions",
+      "title": "Composition",
+      "type": "object"
+    },
+    "atoms_per_formula_unit": {
+      "description": "Atoms in one reduced formula unit",
+      "title": "Atoms Per Formula Unit",
+      "type": "integer"
+    },
+    "space_group": {
+      "$ref": "#/$defs/SpaceGroup"
+    },
+    "lattice": {
+      "$ref": "#/$defs/LatticeRecord"
+    },
+    "volume_per_atom": {
+      "description": "\u00c5^3/atom",
+      "title": "Volume Per Atom",
+      "type": "number"
+    },
+    "molar_volume": {
+      "description": "m^3 per mole of formula units (reduced formula)",
+      "title": "Molar Volume",
+      "type": "number"
+    },
+    "density": {
+      "description": "g/cm^3",
+      "title": "Density",
+      "type": "number"
+    },
+    "formation_energy_per_atom": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "eV/atom (DFT, Materials Project)",
+      "title": "Formation Energy Per Atom"
+    },
+    "energy_above_hull": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "eV/atom",
+      "title": "Energy Above Hull"
+    },
+    "band_gap": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "eV",
+      "title": "Band Gap"
+    },
+    "is_stable": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Is Stable"
+    },
+    "elastic": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ElasticData"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "global_instability_index": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Bond-valence global instability index, v.u.",
+      "title": "Global Instability Index"
+    },
+    "polyhedron_types": {
+      "items": {
+        "$ref": "#/$defs/PolyhedronTypeRecord"
+      },
+      "title": "Polyhedron Types",
+      "type": "array"
+    }
+  },
+  "required": [
+    "source",
+    "formula",
+    "composition",
+    "atoms_per_formula_unit",
+    "space_group",
+    "lattice",
+    "volume_per_atom",
+    "molar_volume",
+    "density",
+    "polyhedron_types"
+  ],
+  "title": "MaterialDescriptor",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}
