@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "consilith-crystallography"
+version = "0.2.0"
+description = "Crystal structure and coordination analysis: coordination polyhedra, Wyckoff sites, bond valence and Pauling checks, with an interactive 3D view"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "pymatgen>=2024.6",
+    "scipy",
+    "numpy",
+    "pydantic>=2",
+]
+
+[project.optional-dependencies]
+server = ["mcp>=2.3,<3", "uvicorn>=0.54,<1"]
+materials-project = ["mp-api>=0.41"]
+platform = ["consilith-contracts", "mcp>=2.3,<3", "uvicorn>=0.54,<1", "marimo==0.25.2"]
+test = ["pytest>=8", "jsonschema>=4"]
+dev = ["pytest>=8", "jsonschema>=4", "mcp>=2.3,<3", "uvicorn>=0.54,<1"]
+
+[project.scripts]
+crystallography = "consilith_crystallography.cli:main"
+crystallography-mcp = "consilith_crystallography.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+consilith_crystallography = ["viewer.html", "report_head.html", "schemas/*.json", "skills/*/SKILL.md", "knowledge/*.md"]
+
+[tool.uv]
+managed = false
+
+[tool.ruff]
+extend = "../../pyproject.toml"
+
+[tool.ruff.lint]
+# Numerical code carried over from upstream: short names (l, k), long literals, zip pairs.
+ignore = ["E501", "E741", "B905", "RUF046", "RUF015", "SIM102"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::UserWarning", "ignore::DeprecationWarning"]
